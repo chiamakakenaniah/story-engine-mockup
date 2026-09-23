@@ -1,0 +1,273 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* =========================================================================
+ *  STORY ENGINE · 故事引擎 — Editorial Dark Theme
+ *  Brass/gold accent on deep charcoal. NO blue / indigo.
+ *  Typography tokens registered below for Tailwind utility classes:
+ *    - text-fg, text-fg-muted, text-fg-faint
+ *    - bg-bg, bg-bg-elevated, bg-bg-subtle
+ *    - text-accent, bg-accent, border-accent
+ *    - text-danger, text-success
+ *  Custom utility classes:
+ *    - .font-serif-headline  → Playfair Display + Noto Serif SC
+ *    - .font-sans-zh         → Inter + Noto Sans SC
+ *    - .font-mono-editorial  → for invariants / system logs
+ * ======================================================================= */
+
+@theme inline {
+  /* shadcn/ui compatibility */
+  --color-background: var(--bg);
+  --color-foreground: var(--fg);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-mono-editorial);
+  --color-sidebar-ring: var(--fg-faint);
+  --color-sidebar-border: var(--fg-faint);
+  --color-sidebar-accent-foreground: var(--fg);
+  --color-sidebar-accent: var(--bg-subtle);
+  --color-sidebar-primary-foreground: var(--bg);
+  --color-sidebar-primary: var(--accent);
+  --color-sidebar-foreground: var(--fg);
+  --color-sidebar: var(--bg-elevated);
+  --color-chart-5: var(--accent-muted);
+  --color-chart-4: var(--success);
+  --color-chart-3: var(--accent);
+  --color-chart-2: var(--fg-muted);
+  --color-chart-1: var(--accent-bright);
+  --color-ring: var(--accent);
+  --color-input: var(--bg-subtle);
+  --color-border: var(--fg-faint);
+  --color-destructive: var(--danger);
+  --color-accent-foreground: var(--bg);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--fg-muted);
+  --color-muted: var(--bg-subtle);
+  --color-secondary-foreground: var(--fg);
+  --color-secondary: var(--bg-elevated);
+  --color-primary-foreground: var(--bg);
+  --color-primary: var(--accent);
+  --color-popover-foreground: var(--fg);
+  --color-popover: var(--bg-elevated);
+  --color-card-foreground: var(--fg);
+  --color-card: var(--bg-elevated);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* Editorial dark theme tokens — registered as Tailwind utilities */
+  --color-bg: var(--bg);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-bg-subtle: var(--bg-subtle);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-faint: var(--fg-faint);
+  --color-accent: var(--accent);
+  --color-accent-bright: var(--accent-bright);
+  --color-accent-muted: var(--accent-muted);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+}
+
+:root {
+  /* Editorial dark — single source of truth */
+  --bg: #0E0E10;
+  --bg-elevated: #18181B;
+  --bg-subtle: #1F1F23;
+  --fg: #F5F0E1;
+  --fg-muted: #A39E8E;
+  --fg-faint: #5C5849;
+  --accent: #C19A6B;
+  --accent-bright: #E5B97F;
+  --accent-muted: #6B5536;
+  --danger: #B85C5C;
+  --success: #6B8E5C;
+
+  --radius: 0.625rem;
+
+  /* shadcn legacy vars mapped to editorial palette */
+  --background: var(--bg);
+  --foreground: var(--fg);
+  --card: var(--bg-elevated);
+  --card-foreground: var(--fg);
+  --popover: var(--bg-elevated);
+  --popover-foreground: var(--fg);
+  --primary: var(--accent);
+  --primary-foreground: var(--bg);
+  --secondary: var(--bg-elevated);
+  --secondary-foreground: var(--fg);
+  --muted: var(--bg-subtle);
+  --muted-foreground: var(--fg-muted);
+  --accent: var(--accent);
+  --accent-foreground: var(--bg);
+  --destructive: var(--danger);
+  --border: var(--fg-faint);
+  --input: var(--bg-subtle);
+  --ring: var(--accent);
+  --chart-1: var(--accent-bright);
+  --chart-2: var(--fg-muted);
+  --chart-3: var(--accent);
+  --chart-4: var(--success);
+  --chart-5: var(--accent-muted);
+  --sidebar: var(--bg-elevated);
+  --sidebar-foreground: var(--fg);
+  --sidebar-primary: var(--accent);
+  --sidebar-primary-foreground: var(--bg);
+  --sidebar-accent: var(--bg-subtle);
+  --sidebar-accent-foreground: var(--fg);
+  --sidebar-border: var(--fg-faint);
+  --sidebar-ring: var(--accent);
+
+  /* Editorial font stacks — pulled from layout.tsx next/font variables */
+  --font-inter: var(--font-inter), 'Inter', system-ui, sans-serif;
+  --font-serif-headline: var(--font-playfair), 'Playfair Display', var(--font-noto-serif-sc), 'Noto Serif SC', serif;
+  --font-sans-zh: var(--font-inter), var(--font-noto-sans-sc), 'Inter', 'Noto Sans SC', sans-serif;
+  --font-mono-editorial: var(--font-geist-mono), 'JetBrains Mono', ui-monospace, monospace;
+}
+
+.dark {
+  /* Editorial dark IS the only mode — dark vars identical to :root */
+  --background: var(--bg);
+  --foreground: var(--fg);
+  --card: var(--bg-elevated);
+  --card-foreground: var(--fg);
+  --popover: var(--bg-elevated);
+  --popover-foreground: var(--fg);
+  --primary: var(--accent);
+  --primary-foreground: var(--bg);
+  --secondary: var(--bg-elevated);
+  --secondary-foreground: var(--fg);
+  --muted: var(--bg-subtle);
+  --muted-foreground: var(--fg-muted);
+  --accent: var(--accent);
+  --accent-foreground: var(--bg);
+  --destructive: var(--danger);
+  --border: var(--fg-faint);
+  --input: var(--bg-subtle);
+  --ring: var(--accent);
+  --chart-1: var(--accent-bright);
+  --chart-2: var(--fg-muted);
+  --chart-3: var(--accent);
+  --chart-4: var(--success);
+  --chart-5: var(--accent-muted);
+  --sidebar: var(--bg-elevated);
+  --sidebar-foreground: var(--fg);
+  --sidebar-primary: var(--accent);
+  --sidebar-primary-foreground: var(--bg);
+  --sidebar-accent: var(--bg-subtle);
+  --sidebar-accent-foreground: var(--fg);
+  --sidebar-border: var(--fg-faint);
+  --sidebar-ring: var(--accent);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    border-color: var(--fg-faint);
+    border-color: color-mix(in oklab, var(--fg-faint) 30%, transparent);
+  }
+  html {
+    background-color: var(--bg);
+    color-scheme: dark;
+    scroll-behavior: smooth;
+  }
+  body {
+    background-color: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-inter), 'Inter', var(--font-noto-sans-sc), 'Noto Sans SC', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  ::selection {
+    background-color: var(--accent);
+    color: var(--bg);
+  }
+}
+
+/* Editorial font utility classes ------------------------------------------- */
+@layer components {
+  .font-serif-headline {
+    font-family: var(--font-playfair), 'Playfair Display', var(--font-noto-serif-sc), 'Noto Serif SC', serif;
+    font-feature-settings: "liga" 1, "kern" 1;
+  }
+  .font-sans-zh {
+    font-family: var(--font-inter), 'Inter', var(--font-noto-sans-sc), 'Noto Sans SC', system-ui, sans-serif;
+  }
+  .font-mono-editorial {
+    font-family: var(--font-geist-mono), 'JetBrains Mono', ui-monospace, monospace;
+    font-feature-settings: "calt" 1, "zero" 1;
+  }
+  /* Gold horizontal hairline — used as section divider */
+  .gold-divider {
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      transparent 0%,
+      var(--accent-muted) 15%,
+      var(--accent) 50%,
+      var(--accent-muted) 85%,
+      transparent 100%
+    );
+    opacity: 0.55;
+  }
+  /* Hero radial background */
+  .hero-radial {
+    background:
+      radial-gradient(
+        ellipse 80% 50% at 50% 35%,
+        color-mix(in oklab, var(--accent) 12%, transparent) 0%,
+        transparent 60%
+      ),
+      radial-gradient(
+        ellipse 60% 40% at 50% 100%,
+        color-mix(in oklab, var(--accent-muted) 18%, transparent) 0%,
+        transparent 70%
+      ),
+      var(--bg);
+  }
+  /* Brass-on-charcoal card with subtle gold top border */
+  .card-editorial {
+    background-color: var(--bg-elevated);
+    border: 1px solid color-mix(in oklab, var(--fg-faint) 50%, transparent);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 1px 0 0 color-mix(in oklab, var(--accent) 22%, transparent) inset,
+                0 8px 32px -12px rgba(0, 0, 0, 0.6);
+  }
+  .card-editorial:hover {
+    border-color: color-mix(in oklab, var(--accent) 40%, transparent);
+  }
+  /* Editorial eyebrow text — small gold mono uppercase */
+  .eyebrow {
+    font-family: var(--font-geist-mono), 'JetBrains Mono', ui-monospace, monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 0.7rem;
+    color: var(--accent);
+    font-weight: 500;
+  }
+}
+
+/* Custom scrollbar for editorial dark -------------------------------------- */
+@layer base {
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--bg);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in oklab, var(--accent-muted) 70%, transparent);
+    border-radius: 6px;
+    border: 2px solid var(--bg);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-muted);
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent-muted) var(--bg);
+  }
+}

@@ -1,0 +1,726 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import { motion } from 'framer-motion'
+     4→     4→import { CheckCircle2, Hash, Lock, Plus, Sigma } from 'lucide-react'
+     5→     5→import { Badge } from '@/components/ui/badge'
+     6→     6→import { Button } from '@/components/ui/button'
+     7→     7→import { toast } from 'sonner'
+     8→     8→import type {
+     9→     9→  PatternArchetype,
+    10→    10→  PatternInvariant,
+    11→    11→  PatternParameterSlot,
+    12→    12→  PatternProvenance,
+    13→    13→  PatternStageSlot,
+    14→    14→  PatternTurningPoint,
+    15→    15→  StoryPattern,
+    16→    16→} from '@/lib/story-engine-data'
+    17→    17→import { findReferenceById } from '@/lib/story-engine-data'
+    18→    18→
+    19→    19→/* -------------------------------------------------------------------------- */
+    20→    20→/*  Provenance badge                                                          */
+    21→    21→/* -------------------------------------------------------------------------- */
+    22→    22→
+    23→    23→function ProvenanceBadge({ provenance }: { provenance: PatternProvenance }) {
+    24→    24→  const map: Record<
+    25→    25→    PatternProvenance,
+    26→    26→    { en: string; zh: string; color: string; Icon: typeof Sigma }
+    27→    27→  > = {
+    28→    28→    'built-in': {
+    29→    29→      en: 'Built-in',
+    30→    30→      zh: '内置',
+    31→    31→      color: 'var(--fg-muted)',
+    32→    32→      Icon: Hash,
+    33→    33→    },
+    34→    34→    distilled: {
+    35→    35→      en: 'Distilled',
+    36→    36→      zh: '提炼',
+    37→    37→      color: 'var(--accent)',
+    38→    38→      Icon: Sigma,
+    39→    39→    },
+    40→    40→    aggregated: {
+    41→    41→      en: 'Aggregated',
+    42→    42→      zh: '聚合',
+    43→    43→      color: 'var(--accent-bright)',
+    44→    44→      Icon: Sigma,
+    45→    45→    },
+    46→    46→  }
+    47→    47→  const v = map[provenance]
+    48→    48→  const Icon = v.Icon
+    49→    49→  return (
+    50→    50→    <Badge
+    51→    51→      variant="outline"
+    52→    52→      className="font-mono-editorial text-[10px] uppercase tracking-wider gap-1"
+    53→    53→      style={{
+    54→    54→        color: v.color,
+    55→    55→        borderColor: `color-mix(in oklab, ${v.color} 50%, transparent)`,
+    56→    56→      }}
+    57→    57→    >
+    58→    58→      <Icon className="size-3" />
+    59→    59→      {v.en} · {v.zh}
+    60→    60→    </Badge>
+    61→    61→  )
+    62→    62→}
+    63→    63→
+    64→    64→/* -------------------------------------------------------------------------- */
+    65→    65→/*  Weight badge (for aggregated meta-pattern stages)                         */
+    66→    66→/* -------------------------------------------------------------------------- */
+    67→    67→
+    68→    68→function WeightBadge({ weight, total }: { weight: number; total: number }) {
+    69→    69→  let color = 'var(--fg-muted)'
+    70→    70→  let bg = 'transparent'
+    71→    71→  if (weight >= 4) {
+    72→    72→    color = 'var(--bg)'
+    73→    73→    bg = 'var(--accent)'
+    74→    74→  } else if (weight >= 2) {
+    75→    75→    color = 'var(--accent)'
+    76→    76→    bg = 'transparent'
+    77→    77→  } else if (weight === 1) {
+    78→    78→    color = 'var(--fg-faint)'
+    79→    79→    bg = 'transparent'
+    80→    80→  }
+    81→    81→  return (
+    82→    82→    <span
+    83→    83→      className="font-mono-editorial text-[10px] px-1.5 py-0.5 rounded-sm border"
+    84→    84→      style={{
+    85→    85→        color,
+    86→    86→        backgroundColor: bg,
+    87→    87→        borderColor: `color-mix(in oklab, ${color} 35%, transparent)`,
+    88→    88→      }}
+    89→    89→      title={`Confirmed in ${weight} of ${total} distilled instances · 于 ${total} 个实例中确认 ${weight} 次`}
+    90→    90→    >
+    91→    91→      {weight}/{total}
+    92→    92→    </span>
+    93→    93→  )
+    94→    94→}
+    95→    95→
+    96→    96→/* -------------------------------------------------------------------------- */
+    97→    97→/*  Stage list (left column of the pattern body)                              */
+    98→    98→/* -------------------------------------------------------------------------- */
+    99→    99→
+   100→   100→function StageList({
+   101→   101→  stages,
+   102→   102→  isAggregated,
+   103→   103→  totalInstances,
+   104→   104→}: {
+   105→   105→  stages: PatternStageSlot[]
+   106→   106→  isAggregated: boolean
+   107→   107→  totalInstances: number
+   108→   108→}) {
+   109→   109→  return (
+   110→   110→    <div className="space-y-3">
+   111→   111→      <SectionLabel en="Stages" zh="阶段" count={stages.length} />
+   112→   112→      <ol className="space-y-3">
+   113→   113→        {stages.map((stage, idx) => {
+   114→   114→          const num = String(idx + 1).padStart(2, '0')
+   115→   115→          return (
+   116→   116→            <motion.li
+   117→   117→              key={stage.slotId}
+   118→   118→              initial={{ opacity: 0, x: -8 }}
+   119→   119→              whileInView={{ opacity: 1, x: 0 }}
+   120→   120→              viewport={{ once: true, margin: '-40px' }}
+   121→   121→              transition={{ duration: 0.35, delay: idx * 0.04 }}
+   122→   122→              className="relative pl-7"
+   123→   123→            >
+   124→   124→              {/* Timeline node */}
+   125→   125→              <span
+   126→   126→                className="absolute left-0 top-1 size-5 rounded-full flex items-center justify-center font-mono-editorial text-[9px] font-bold"
+   127→   127→                style={{
+   128→   128→                  color: 'var(--accent-bright)',
+   129→   129→                  backgroundColor: 'var(--bg)',
+   130→   130→                  border: '1px solid var(--accent-muted)',
+   131→   131→                }}
+   132→   132→              >
+   133→   133→                {num}
+   134→   134→              </span>
+   135→   135→              {/* Connector */}
+   136→   136→              {idx < stages.length - 1 && (
+   137→   137→                <span
+   138→   138→                  aria-hidden
+   139→   139→                  className="absolute left-[9px] top-6 bottom-[-1rem] w-px"
+   140→   140→                  style={{
+   141→   141→                    background:
+   142→   142→                      'linear-gradient(to bottom, var(--accent-muted), transparent)',
+   143→   143→                  }}
+   144→   144→                />
+   145→   145→              )}
+   146→   146→
+   147→   147→              <div className="flex items-start justify-between gap-2 flex-wrap">
+   148→   148→                <div className="flex flex-col gap-0.5">
+   149→   149→                  <div className="flex items-center gap-2 flex-wrap">
+   150→   150→                    <span
+   151→   151→                      className="font-serif-headline text-sm font-bold"
+   152→   152→                      style={{ color: 'var(--fg)' }}
+   153→   153→                    >
+   154→   154→                      {stage.label.en}
+   155→   155→                    </span>
+   156→   156→                    <span
+   157→   157→                      className="font-sans-zh text-sm"
+   158→   158→                      style={{ color: 'var(--fg-muted)' }}
+   159→   159→                    >
+   160→   160→                      {stage.label.zh}
+   161→   161→                    </span>
+   162→   162→                  </div>
+   163→   163→                  <span
+   164→   164→                    className="font-mono-editorial text-[10px] uppercase tracking-wider"
+   165→   165→                    style={{ color: 'var(--accent)' }}
+   166→   166→                  >
+   167→   167→                    {stage.role.replace('-', ' ')} · {stage.slotId}
+   168→   168→                  </span>
+   169→   169→                </div>
+   170→   170→                {isAggregated && typeof stage.weight === 'number' && (
+   171→   171→                  <WeightBadge weight={stage.weight} total={totalInstances} />
+   172→   172→                )}
+   173→   173→              </div>
+   174→   174→
+   175→   175→              <p
+   176→   176→                className="mt-1.5 text-xs leading-relaxed"
+   177→   177→                style={{ color: 'var(--fg-muted)' }}
+   178→   178→              >
+   179→   179→                {stage.description.en}
+   180→   180→                <span className="block mt-0.5 font-sans-zh" style={{ color: 'var(--fg-faint)' }}>
+   181→   181→                  {stage.description.zh}
+   182→   182→                </span>
+   183→   183→              </p>
+   184→   184→
+   185→   185→              {/* Trigger / Payoff */}
+   186→   186→              <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+   187→   187→                <div
+   188→   188→                  className="rounded-sm border-l-2 pl-2 py-1"
+   189→   189→                  style={{ borderColor: 'var(--accent-muted)' }}
+   190→   190→                >
+   191→   191→                  <div
+   192→   192→                    className="font-mono-editorial uppercase tracking-wider text-[9px] mb-0.5"
+   193→   193→                    style={{ color: 'var(--accent)' }}
+   194→   194→                  >
+   195→   195→                    Trigger · 触发
+   196→   196→                  </div>
+   197→   197→                  <p style={{ color: 'var(--fg-muted)' }}>{stage.triggerConstraint.en}</p>
+   198→   198→                  <p className="font-sans-zh mt-0.5" style={{ color: 'var(--fg-faint)' }}>
+   199→   199→                    {stage.triggerConstraint.zh}
+   200→   200→                  </p>
+   201→   201→                </div>
+   202→   202→                <div
+   203→   203→                  className="rounded-sm border-l-2 pl-2 py-1"
+   204→   204→                  style={{ borderColor: 'var(--accent-muted)' }}
+   205→   205→                >
+   206→   206→                  <div
+   207→   207→                    className="font-mono-editorial uppercase tracking-wider text-[9px] mb-0.5"
+   208→   208→                    style={{ color: 'var(--accent)' }}
+   209→   209→                  >
+   210→   210→                    Payoff · 闭合
+   211→   211→                  </div>
+   212→   212→                  <p style={{ color: 'var(--fg-muted)' }}>{stage.payoffConstraint.en}</p>
+   213→   213→                  <p className="font-sans-zh mt-0.5" style={{ color: 'var(--fg-faint)' }}>
+   214→   214→                    {stage.payoffConstraint.zh}
+   215→   215→                  </p>
+   216→   216→                </div>
+   217→   217→              </div>
+   218→   218→
+   219→   219→              {(stage.keyEventsMin !== undefined || stage.keyEventsMax !== undefined) && (
+   220→   220→                <div
+   221→   221→                  className="mt-1.5 font-mono-editorial text-[10px]"
+   222→   222→                  style={{ color: 'var(--fg-faint)' }}
+   223→   223→                >
+   224→   224→                  keyEvents: {stage.keyEventsMin ?? '?'}–{stage.keyEventsMax ?? '?'}
+   225→   225→                  {stage.requiredArchetypeKeys && stage.requiredArchetypeKeys.length > 0 && (
+   226→   226→                    <span className="ml-2">
+   227→   227→                      · archetypes: {stage.requiredArchetypeKeys.join(', ')}
+   228→   228→                    </span>
+   229→   229→                  )}
+   230→   230→                </div>
+   231→   231→              )}
+   232→   232→            </motion.li>
+   233→   233→          )
+   234→   234→        })}
+   235→   235→      </ol>
+   236→   236→    </div>
+   237→   237→  )
+   238→   238→}
+   239→   239→
+   240→   240→/* -------------------------------------------------------------------------- */
+   241→   241→/*  Archetype list                                                            */
+   242→   242→/* -------------------------------------------------------------------------- */
+   243→   243→
+   244→   244→function ArchetypeList({ archetypes }: { archetypes: PatternArchetype[] }) {
+   245→   245→  return (
+   246→   246→    <div className="space-y-3">
+   247→   247→      <SectionLabel en="Archetypes" zh="原型" count={archetypes.length} />
+   248→   248→      <ul className="space-y-2.5">
+   249→   249→        {archetypes.map((arc) => (
+   250→   250→          <motion.li
+   251→   251→            key={arc.archetypeKey}
+   252→   252→            initial={{ opacity: 0, y: 6 }}
+   253→   253→            whileInView={{ opacity: 1, y: 0 }}
+   254→   254→            viewport={{ once: true, margin: '-40px' }}
+   255→   255→            transition={{ duration: 0.3 }}
+   256→   256→            className="rounded-md p-2.5"
+   257→   257→            style={{
+   258→   258→              backgroundColor: 'var(--bg-subtle)',
+   259→   259→              border: '1px solid color-mix(in oklab, var(--fg-faint) 30%, transparent)',
+   260→   260→            }}
+   261→   261→          >
+   262→   262→            <div className="flex items-baseline gap-2 flex-wrap">
+   263→   263→              <span
+   264→   264→                className="font-mono-editorial text-[10px] font-bold"
+   265→   265→                style={{ color: 'var(--accent)' }}
+   266→   266→              >
+   267→   267→                {arc.archetypeKey}
+   268→   268→              </span>
+   269→   269→              <span
+   270→   270→                className="font-serif-headline text-sm font-bold"
+   271→   271→                style={{ color: 'var(--fg)' }}
+   272→   272→              >
+   273→   273→                {arc.label.en}
+   274→   274→              </span>
+   275→   275→              <span
+   276→   276→                className="font-sans-zh text-sm"
+   277→   277→                style={{ color: 'var(--fg-muted)' }}
+   278→   278→              >
+   279→   279→                {arc.label.zh}
+   280→   280→              </span>
+   281→   281→            </div>
+   282→   282→            <p
+   283→   283→              className="mt-1 text-[11px] leading-relaxed"
+   284→   284→              style={{ color: 'var(--fg-muted)' }}
+   285→   285→            >
+   286→   286→              {arc.functionSummary.en}
+   287→   287→              <span className="block font-sans-zh mt-0.5" style={{ color: 'var(--fg-faint)' }}>
+   288→   288→                {arc.functionSummary.zh}
+   289→   289→              </span>
+   290→   290→            </p>
+   291→   291→            {arc.mandatoryAtRoles.length > 0 && (
+   292→   292→              <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+   293→   293→                <span
+   294→   294→                  className="font-mono-editorial text-[9px] uppercase tracking-wider"
+   295→   295→                  style={{ color: 'var(--fg-faint)' }}
+   296→   296→                >
+   297→   297→                  Mandatory at · 必现于:
+   298→   298→                </span>
+   299→   299→                {arc.mandatoryAtRoles.map((role) => (
+   300→   300→                  <span
+   301→   301→                    key={role}
+   302→   302→                    className="font-mono-editorial text-[9px] px-1.5 py-0.5 rounded"
+   303→   303→                    style={{
+   304→   304→                      color: 'var(--accent-bright)',
+   305→   305→                      backgroundColor: 'color-mix(in oklab, var(--accent-muted) 30%, transparent)',
+   306→   306→                    }}
+   307→   307→                  >
+   308→   308→                    {role.replace('-', ' ')}
+   309→   309→                  </span>
+   310→   310→                ))}
+   311→   311→              </div>
+   312→   312→            )}
+   313→   313→          </motion.li>
+   314→   314→        ))}
+   315→   315→      </ul>
+   316→   316→    </div>
+   317→   317→  )
+   318→   318→}
+   319→   319→
+   320→   320→/* -------------------------------------------------------------------------- */
+   321→   321→/*  Turning points                                                            */
+   322→   322→/* -------------------------------------------------------------------------- */
+   323→   323→
+   324→   324→function TurningPointsRow({
+   325→   325→  turningPoints,
+   326→   326→}: {
+   327→   327→  turningPoints: PatternTurningPoint[]
+   328→   328→}) {
+   329→   329→  if (turningPoints.length === 0) return null
+   330→   330→  return (
+   331→   331→    <div className="space-y-2">
+   332→   332→      <SectionLabel en="Turning Points" zh="转折点" count={turningPoints.length} />
+   333→   333→      <div className="flex flex-wrap gap-2">
+   334→   334→        {turningPoints.map((tp) => (
+   335→   335→          <div
+   336→   336→            key={tp.pointKey}
+   337→   337→            className="rounded-md px-2.5 py-1.5 max-w-xs"
+   338→   338→            style={{
+   339→   339→              backgroundColor: 'var(--bg-subtle)',
+   340→   340→              border: '1px solid color-mix(in oklab, var(--accent-muted) 40%, transparent)',
+   341→   341→            }}
+   342→   342→          >
+   343→   343→            <div className="flex items-baseline gap-1.5 flex-wrap">
+   344→   344→              <span
+   345→   345→                className="font-mono-editorial text-[9px] font-bold"
+   346→   346→                style={{ color: 'var(--accent)' }}
+   347→   347→              >
+   348→   348→                {tp.pointKey}
+   349→   349→              </span>
+   350→   350→              <span
+   351→   351→                className="font-serif-headline text-xs font-bold"
+   352→   352→                style={{ color: 'var(--fg)' }}
+   353→   353→              >
+   354→   354→                {tp.label.en}
+   355→   355→              </span>
+   356→   356→              <span
+   357→   357→                className="font-sans-zh text-xs"
+   358→   358→                style={{ color: 'var(--fg-muted)' }}
+   359→   359→              >
+   360→   360→                {tp.label.zh}
+   361→   361→              </span>
+   362→   362→            </div>
+   363→   363→            <p
+   364→   364→              className="mt-1 text-[10px] leading-snug"
+   365→   365→              style={{ color: 'var(--fg-muted)' }}
+   366→   366→            >
+   367→   367→              ↳ {tp.irreversibleChange.en}
+   368→   368→              <span className="block font-sans-zh mt-0.5" style={{ color: 'var(--fg-faint)' }}>
+   369→   369→                ↳ {tp.irreversibleChange.zh}
+   370→   370→              </span>
+   371→   371→            </p>
+   372→   372→          </div>
+   373→   373→        ))}
+   374→   374→      </div>
+   375→   375→    </div>
+   376→   376→  )
+   377→   377→}
+   378→   378→
+   379→   379→/* -------------------------------------------------------------------------- */
+   380→   380→/*  Parameter slots                                                           */
+   381→   381→/* -------------------------------------------------------------------------- */
+   382→   382→
+   383→   383→function ParameterSlotsRow({
+   384→   384→  slots,
+   385→   385→}: {
+   386→   386→  slots: PatternParameterSlot[]
+   387→   387→}) {
+   388→   388→  if (slots.length === 0) return null
+   389→   389→  return (
+   390→   390→    <div className="space-y-2">
+   391→   391→      <SectionLabel en="Parameter Slots" zh="参数槽位" count={slots.length} />
+   392→   392→      <div className="flex flex-wrap gap-2">
+   393→   393→        {slots.map((slot) => (
+   394→   394→          <span
+   395→   395→            key={slot.paramKey}
+   396→   396→            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1"
+   397→   397→            style={{
+   398→   398→              backgroundColor: 'var(--bg-subtle)',
+   399→   399→              border: '1px solid color-mix(in oklab, var(--fg-faint) 40%, transparent)',
+   400→   400→            }}
+   401→   401→          >
+   402→   402→            {slot.required ? (
+   403→   403→              <CheckCircle2
+   404→   404→                className="size-3"
+   405→   405→                style={{ color: 'var(--accent)' }}
+   406→   406→              />
+   407→   407→            ) : (
+   408→   408→              <span
+   409→   409→                className="size-3 inline-block rounded-full"
+   410→   410→                style={{
+   411→   411→                  border: '1px solid var(--fg-faint)',
+   412→   412→                }}
+   413→   413→                aria-label="optional · 可选"
+   414→   414→              />
+   415→   415→            )}
+   416→   416→            <span
+   417→   417→              className="font-mono-editorial text-[10px] font-bold"
+   418→   418→              style={{ color: 'var(--accent)' }}
+   419→   419→            >
+   420→   420→              {slot.paramKey}
+   421→   421→            </span>
+   422→   422→            <span
+   423→   423→              className="text-xs"
+   424→   424→              style={{ color: 'var(--fg-muted)' }}
+   425→   425→            >
+   426→   426→              {slot.label.en}
+   427→   427→            </span>
+   428→   428→            <span
+   429→   429→              className="font-sans-zh text-xs"
+   430→   430→              style={{ color: 'var(--fg-faint)' }}
+   431→   431→            >
+   432→   432→              {slot.label.zh}
+   433→   433→            </span>
+   434→   434→          </span>
+   435→   435→        ))}
+   436→   436→      </div>
+   437→   437→    </div>
+   438→   438→  )
+   439→   439→}
+   440→   440→
+   441→   441→/* -------------------------------------------------------------------------- */
+   442→   442→/*  Invariants                                                                */
+   443→   443→/* -------------------------------------------------------------------------- */
+   444→   444→
+   445→   445→function InvariantsBlock({
+   446→   446→  invariants,
+   447→   447→}: {
+   448→   448→  invariants: PatternInvariant[]
+   449→   449→}) {
+   450→   450→  if (invariants.length === 0) return null
+   451→   451→  return (
+   452→   452→    <div className="space-y-2">
+   453→   453→      <SectionLabel en="Invariants" zh="不变量" count={invariants.length} />
+   454→   454→      <div
+   455→   455→        className="rounded-md p-3 font-mono-editorial text-[11px] leading-relaxed"
+   456→   456→        style={{
+   457→   457→          backgroundColor: 'var(--bg)',
+   458→   458→          border: '1px solid color-mix(in oklab, var(--fg-faint) 40%, transparent)',
+   459→   459→          color: 'var(--fg-muted)',
+   460→   460→        }}
+   461→   461→      >
+   462→   462→        {invariants.map((inv) => (
+   463→   463→          <div key={inv.code} className="mb-2 last:mb-0">
+   464→   464→            <div className="flex items-baseline gap-2 flex-wrap">
+   465→   465→              <span style={{ color: 'var(--accent-bright)' }}>{inv.code}</span>
+   466→   466→              <span style={{ color: 'var(--fg-faint)' }}>›</span>
+   467→   467→              <span style={{ color: 'var(--accent)' }}>{inv.spec}</span>
+   468→   468→            </div>
+   469→   469→            <p className="mt-0.5" style={{ color: 'var(--fg-muted)' }}>
+   470→   470→              ✓ {inv.message.en}
+   471→   471→            </p>
+   472→   472→            <p className="font-sans-zh" style={{ color: 'var(--fg-faint)' }}>
+   473→   473→              ✓ {inv.message.zh}
+   474→   474→            </p>
+   475→   475→          </div>
+   476→   476→        ))}
+   477→   477→      </div>
+   478→   478→    </div>
+   479→   479→  )
+   480→   480→}
+   481→   481→
+   482→   482→/* -------------------------------------------------------------------------- */
+   483→   483→/*  Section label (reusable)                                                  */
+   484→   484→/* -------------------------------------------------------------------------- */
+   485→   485→
+   486→   486→function SectionLabel({
+   487→   487→  en,
+   488→   488→  zh,
+   489→   489→  count,
+   490→   490→}: {
+   491→   491→  en: string
+   492→   492→  zh: string
+   493→   493→  count?: number
+   494→   494→}) {
+   495→   495→  return (
+   496→   496→    <div className="flex items-baseline gap-2 flex-wrap">
+   497→   497→      <span
+   498→   498→        className="font-mono-editorial text-[10px] uppercase tracking-[0.2em]"
+   499→   499→        style={{ color: 'var(--accent)' }}
+   500→   500→      >
+   501→   501→        {en}
+   502→   502→      </span>
+   503→   503→      <span
+   504→   504→        className="font-sans-zh text-[10px]"
+   505→   505→        style={{ color: 'var(--fg-faint)' }}
+   506→   506→      >
+   507→   507→        {zh}
+   508→   508→      </span>
+   509→   509→      {typeof count === 'number' && (
+   510→   510→        <span
+   511→   511→          className="font-mono-editorial text-[10px]"
+   512→   512→          style={{ color: 'var(--fg-faint)' }}
+   513→   513→        >
+   514→   514→          ({count})
+   515→   515→        </span>
+   516→   516→      )}
+   517→   517→    </div>
+   518→   518→  )
+   519→   519→}
+   520→   520→
+   521→   521→/* -------------------------------------------------------------------------- */
+   522→   522→/*  MAIN COMPONENT — DistilledPatternCard                                     */
+   523→   523→/*  Reusable across Distillation result, Aggregation meta-pattern, and        */
+   524→   524→/*  Subagent B's PatternLibrarySection. Renders ANY StoryPattern.             */
+   525→   525→/* -------------------------------------------------------------------------- */
+   526→   526→
+   527→   527→export interface DistilledPatternCardProps {
+   528→   528→  pattern: StoryPattern
+   529→   529→  /** When true, show "Add to Library · 加入模式库" button at the foot. */
+   530→   530→  showAddToLibrary?: boolean
+   531→   531→  /** Override the "added" state — useful for aggregated meta-pattern demo. */
+   532→   532→  addedToLibrary?: boolean
+   533→   533→  /** Optional className passthrough. */
+   534→   534→  className?: string
+   535→   535→}
+   536→   536→
+   537→   537→export function DistilledPatternCard({
+   538→   538→  pattern,
+   539→   539→  showAddToLibrary = true,
+   540→   540→  addedToLibrary = false,
+   541→   541→  className,
+   542→   542→}: DistilledPatternCardProps) {
+   543→   543→  const isAggregated = pattern.provenance === 'aggregated'
+   544→   544→  const totalInstances = pattern.statisticalWeight ?? 1
+   545→   545→
+   546→   546→  const sourceRef =
+   547→   547→    pattern.sourceReferenceIds && pattern.sourceReferenceIds.length > 0
+   548→   548→      ? findReferenceById(pattern.sourceReferenceIds[0])
+   549→   549→      : undefined
+   550→   550→
+   551→   551→  const onAdd = () => {
+   552→   552→    toast.success('Added to Library · 已加入模式库', {
+   553→   553→      description: `${pattern.name.en} · ${pattern.name.zh}`,
+   554→   554→      duration: 3500,
+   555→   555→    })
+   556→   556→  }
+   557→   557→
+   558→   558→  return (
+   559→   559→    <motion.article
+   560→   560→      initial={{ opacity: 0, y: 12 }}
+   561→   561→      whileInView={{ opacity: 1, y: 0 }}
+   562→   562→      viewport={{ once: true, margin: '-60px' }}
+   563→   563→      transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+   564→   564→      className={['card-editorial overflow-hidden', className].filter(Boolean).join(' ')}
+   565→   565→      aria-label={`Story pattern: ${pattern.name.en} · ${pattern.name.zh}`}
+   566→   566→    >
+   567→   567→      {/* HEADER --------------------------------------------------------- */}
+   568→   568→      <header
+   569→   569→        className="px-5 sm:px-6 pt-5 pb-4 border-b"
+   570→   570→        style={{
+   571→   571→          borderColor: 'color-mix(in oklab, var(--fg-faint) 35%, transparent)',
+   572→   572→          background:
+   573→   573→            'linear-gradient(180deg, color-mix(in oklab, var(--accent) 7%, transparent) 0%, transparent 100%)',
+   574→   574→        }}
+   575→   575→      >
+   576→   576→        <div className="flex items-start justify-between gap-3 flex-wrap">
+   577→   577→          <div className="flex flex-col gap-1.5">
+   578→   578→            <div className="flex items-center gap-2 flex-wrap">
+   579→   579→              <ProvenanceBadge provenance={pattern.provenance} />
+   580→   580→              {pattern.status === 'sealed' && (
+   581→   581→                <span
+   582→   582→                  className="inline-flex items-center gap-1 font-mono-editorial text-[10px] uppercase tracking-wider"
+   583→   583→                  style={{ color: 'var(--success)' }}
+   584→   584→                >
+   585→   585→                  <Lock className="size-3" /> Sealed · 封存
+   586→   586→                </span>
+   587→   587→              )}
+   588→   588→              {pattern.status === 'draft' && (
+   589→   589→                <span
+   590→   590→                  className="inline-flex items-center gap-1 font-mono-editorial text-[10px] uppercase tracking-wider"
+   591→   591→                  style={{ color: 'var(--fg-muted)' }}
+   592→   592→                >
+   593→   593→                  Draft · 草稿
+   594→   594→                </span>
+   595→   595→              )}
+   596→   596→            </div>
+   597→   597→            <h3
+   598→   598→              className="font-serif-headline text-2xl sm:text-3xl font-black leading-tight"
+   599→   599→              style={{ color: 'var(--fg)' }}
+   600→   600→            >
+   601→   601→              {pattern.name.en}
+   602→   602→            </h3>
+   603→   603→            <p
+   604→   604→              className="font-sans-zh text-lg font-bold"
+   605→   605→              style={{ color: 'var(--accent)' }}
+   606→   606→            >
+   607→   607→              {pattern.name.zh}
+   608→   608→            </p>
+   609→   609→            <div
+   610→   610→              className="flex items-center gap-2 flex-wrap font-mono-editorial text-[11px]"
+   611→   611→              style={{ color: 'var(--fg-muted)' }}
+   612→   612→            >
+   613→   613→              <span style={{ color: 'var(--accent)' }}>{pattern.patternKey}</span>
+   614→   614→              <span style={{ color: 'var(--fg-faint)' }}>·</span>
+   615→   615→              <span>{pattern.family.en}</span>
+   616→   616→              <span style={{ color: 'var(--fg-faint)' }}>·</span>
+   617→   617→              <span className="font-sans-zh">{pattern.family.zh}</span>
+   618→   618→            </div>
+   619→   619→          </div>
+   620→   620→
+   621→   621→          <div className="flex flex-col items-end gap-1 text-right">
+   622→   622→            {isAggregated && (
+   623→   623→              <>
+   624→   624→                <div
+   625→   625→                  className="flex items-center gap-1.5 font-mono-editorial text-[11px]"
+   626→   626→                  style={{ color: 'var(--accent-bright)' }}
+   627→   627→                >
+   628→   628→                  <Sigma className="size-3.5" />
+   629→   629→                  Confirmed: {pattern.statisticalWeight} instances
+   630→   630→                </div>
+   631→   631→                {typeof pattern.confidence === 'number' && (
+   632→   632→                  <div
+   633→   633→                    className="font-mono-editorial text-[11px]"
+   634→   634→                    style={{ color: 'var(--fg-muted)' }}
+   635→   635→                  >
+   636→   636→                    Confidence · 置信度:{' '}
+   637→   637→                    <span style={{ color: 'var(--accent)' }}>
+   638→   638→                      {pattern.confidence.toFixed(2)}
+   639→   639→                    </span>
+   640→   640→                  </div>
+   641→   641→                )}
+   642→   642→              </>
+   643→   643→            )}
+   644→   644→            {sourceRef && (
+   645→   645→              <div
+   646→   646→                className="font-mono-editorial text-[10px]"
+   647→   647→                style={{ color: 'var(--fg-faint)' }}
+   648→   648→              >
+   649→   649→                source · 源: {sourceRef.title.en} ({sourceRef.year})
+   650→   650→              </div>
+   651→   651→            )}
+   652→   652→          </div>
+   653→   653→        </div>
+   654→   654→
+   655→   655→        <p
+   656→   656→          className="mt-3 text-sm leading-relaxed max-w-3xl"
+   657→   657→          style={{ color: 'var(--fg-muted)' }}
+   658→   658→        >
+   659→   659→          {pattern.description.en}
+   660→   660→          <span className="block mt-1 font-sans-zh" style={{ color: 'var(--fg-faint)' }}>
+   661→   661→            {pattern.description.zh}
+   662→   662→          </span>
+   663→   663→        </p>
+   664→   664→      </header>
+   665→   665→
+   666→   666→      {/* BODY — two columns on desktop, stacked on mobile ------------------ */}
+   667→   667→      <div className="px-5 sm:px-6 py-5 grid grid-cols-1 lg:grid-cols-2 gap-6">
+   668→   668→        <StageList
+   669→   669→          stages={pattern.stages}
+   670→   670→          isAggregated={isAggregated}
+   671→   671→          totalInstances={totalInstances}
+   672→   672→        />
+   673→   673→        <ArchetypeList archetypes={pattern.archetypes} />
+   674→   674→      </div>
+   675→   675→
+   676→   676→      {/* BELOW — turning points, parameters, invariants ------------------ */}
+   677→   677→      <div
+   678→   678→        className="px-5 sm:px-6 py-5 space-y-5 border-t"
+   679→   679→        style={{
+   680→   680→          borderColor: 'color-mix(in oklab, var(--fg-faint) 25%, transparent)',
+   681→   681→          backgroundColor: 'color-mix(in oklab, var(--bg-subtle) 40%, transparent)',
+   682→   682→        }}
+   683→   683→      >
+   684→   684→        <TurningPointsRow turningPoints={pattern.turningPoints} />
+   685→   685→        <ParameterSlotsRow slots={pattern.parameterSlots} />
+   686→   686→        <InvariantsBlock invariants={pattern.invariants} />
+   687→   687→      </div>
+   688→   688→
+   689→   689→      {/* FOOTER — Add to Library ---------------------------------------- */}
+   690→   690→      {showAddToLibrary && (
+   691→   691→        <footer
+   692→   692→          className="px-5 sm:px-6 py-4 border-t flex items-center justify-between gap-3 flex-wrap"
+   693→   693→          style={{
+   694→   694→            borderColor: 'color-mix(in oklab, var(--fg-faint) 25%, transparent)',
+   695→   695→          }}
+   696→   696→        >
+   697→   697→          <div
+   698→   698→            className="font-mono-editorial text-[11px]"
+   699→   699→            style={{ color: 'var(--fg-faint)' }}
+   700→   700→          >
+   701→   701→            id: {pattern.id}
+   702→   702→          </div>
+   703→   703→          <Button
+   704→   704→            onClick={onAdd}
+   705→   705→            variant="outline"
+   706→   706→            size="sm"
+   707→   707→            disabled={addedToLibrary}
+   708→   708→            className="border-accent/60 text-accent hover:bg-accent hover:text-bg font-semibold"
+   709→   709→            style={{
+   710→   710→              borderColor: 'color-mix(in oklab, var(--accent) 60%, transparent)',
+   711→   711→              color: 'var(--accent-bright)',
+   712→   712→            }}
+   713→   713→          >
+   714→   714→            <Plus className="size-3.5" />
+   715→   715→            {addedToLibrary
+   716→   716→              ? 'In Library · 已在库中'
+   717→   717→              : 'Add to Library · 加入模式库'}
+   718→   718→          </Button>
+   719→   719→        </footer>
+   720→   720→      )}
+   721→   721→    </motion.article>
+   722→   722→  )
+   723→   723→}
+   724→   724→
+   725→   725→export default DistilledPatternCard
+   726→   726→

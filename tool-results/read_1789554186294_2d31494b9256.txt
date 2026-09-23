@@ -1,0 +1,2002 @@
+     1→import { CHARACTER_DIMENSIONS } from '../character/character-dimensions'
+     2→import { CONTEXT_SOURCE_BY_KEY } from '../registry/context-sources'
+     3→import {
+     4→  FIELD_BY_TARGET,
+     5→  STORY_CORE_GENERATABLE_FIELD_SPECS,
+     6→  WORLDVIEW_GENERATABLE_FIELD_SPECS,
+     7→} from '../registry/field-registry'
+     8→import { ADOPTION_EXTENSIONS } from '../registry/adoption-schema'
+     9→import { REGISTRY_BY_NAME } from '../registry/project-tables'
+    10→import {
+    11→  AGENT_CONTEXT_INPUT_HANDLINGS,
+    12→  AGENT_CONTEXT_INPUT_STATES,
+    13→  AGENT_CONTEXT_PROFILES,
+    14→  classifyAgentContextInputStateV1,
+    15→  type AgentContextEvidence,
+    16→  type AgentContextInputHandlingV1,
+    17→  type AgentContextInputStateEvidenceV1,
+    18→  type AgentContextInputStateV1,
+    19→  type AgentContextTaskKind,
+    20→} from './context-policy'
+    21→import {
+    22→  CONTEXT_RESOURCE_KINDS_V1,
+    23→  type AssembleContextSourceEvidence,
+    24→  type ContextResourceDepthV1,
+    25→  type ContextResourceKind,
+    26→} from '../registry/types'
+    27→import { AGENT_TOOL_BY_NAME } from './tool-registry'
+    28→
+    29→export const DOMAIN_AGENT_IDS = ['world-origin', 'character', 'inspiration', 'outline', 'prose'] as const
+    30→export type DomainAgentId = typeof DOMAIN_AGENT_IDS[number]
+    31→
+    32→export type AgentSkillExecutionModeV1 =
+    33→  | 'worldview-field'
+    34→  | 'world-suggest'
+    35→  | 'worldview-expand'
+    36→  | 'world-link-context'
+    37→  | 'constitution-extract'
+    38→  | 'codex-extract'
+    39→  | 'codex-enrich'
+    40→  | 'story-core'
+    41→  | 'creative-rules'
+    42→  | 'create'
+    43→  | 'supplement'
+    44→  | 'lifecycle'
+    45→  | 'relationships'
+    46→  | 'locations'
+    47→  | 'map-config'
+    48→  | 'history-consult'
+    49→  | 'history-storm'
+    50→  | 'reference-summary'
+    51→  | 'reference-characters'
+    52→  | 'reverse'
+    53→  | 'auto'
+    54→  | 'story-arcs'
+    55→  | 'foreshadow-suggestions'
+    56→  | 'storyline-progress'
+    57→  | 'character-driven'
+    58→  | 'character-revision'
+    59→  | 'impact-summary-regenerate'
+    60→  | 'volumes'
+    61→  | 'chapters'
+    62→  | 'details'
+    63→  | 'generate'
+    64→  | 'continue'
+    65→  | 'emotion-beats'
+    66→  | 'inventory-extraction'
+    67→  | 'story-timeline-extraction'
+    68→  | 'cultivation-progress-extraction'
+    69→  | 'style-learn'
+    70→  | 'selection-edit'
+    71→  | 'selection-check'
+    72→  | 'review'
+    73→  | 'revise'
+    74→  | 'organize'
+    75→  | 'memory'
+    76→  | 'consistency'
+    77→  | 'character-reply'
+    78→  | 'scene-director'
+    79→  | 'ai-town-director'
+    80→  | 'memory-curator'
+    81→  | 'character-interaction-production'
+    82→  | 'adventure-intent'
+    83→  | 'adventure-narrator'
+    84→  | 'open-world-briefing'
+    85→  | 'open-world-advisor'
+    86→  | 'open-world-outcome-narrator'
+    87→  | 'open-world-actor-suggestion'
+    88→  | 'open-world-expression'
+    89→  | 'open-world-narration'
+    90→  | 'ttrpg-gm-narrator'
+    91→  | 'ttrpg-gm-actor-intent'
+    92→  | 'ttrpg-director'
+    93→  | 'ttrpg-private-guidance'
+    94→  | 'ttrpg-player-intent'
+    95→  | 'product-production'
+    96→  | 'adaptation-source-analysis'
+    97→  | 'adaptation-causal-graph'
+    98→  | 'screenplay-adaptation-brief'
+    99→  | 'screenplay-decision-pass'
+   100→  | 'screenplay-beat-sheet'
+   101→  | 'screenplay-scene-card'
+   102→  | 'screenplay-scene-draft'
+   103→  | 'screenplay-grounding-review'
+   104→  | 'screenplay-dramaturgy-review'
+   105→  | 'screenplay-targeted-rewrite'
+   106→  | 'comic-adaptation-brief'
+   107→  | 'comic-decision-pass'
+   108→  | 'comic-script-adaptation'
+   109→  | 'comic-page-rhythm'
+   110→  | 'comic-panel-plan'
+   111→  | 'comic-visual-bible'
+   112→  | 'comic-image-request'
+   113→  | 'comic-visual-continuity-review'
+   114→  | 'comic-targeted-repair'
+   115→  | 'comic-page-review'
+   116→  | 'motion-drama-series-bible'
+   117→  | 'motion-drama-asset-bible'
+   118→  | 'motion-drama-episode-outline'
+   119→  | 'motion-drama-episode-script'
+   120→  | 'motion-drama-shot-design'
+   121→  | 'motion-drama-image-prompts'
+   122→  | 'motion-drama-video-prompts'
+   123→  | 'motion-drama-quality-review'
+   124→  | 'short-intent-brief'
+   125→  | 'short-story-design'
+   126→  | 'short-scene-plan'
+   127→  | 'short-chapter-draft'
+   128→  | 'short-continuity-review'
+   129→  | 'short-targeted-rewrite'
+   130→
+   131→export interface AgentSkillWriteTargetV1 {
+   132→  table: string
+   133→  fields: readonly string[]
+   134→  adoptionExtension?: string
+   135→}
+   136→
+   137→export interface AgentSkillInputPolicyV1 {
+   138→  /** Sources whose actual data presence determines empty/partial/complete. */
+   139→  sourceKeys: readonly string[]
+   140→  states: Record<AgentContextInputStateV1, {
+   141→    handling: AgentContextInputHandlingV1
+   142→    /** Only the selected state's concise instruction is injected. */
+   143→    instruction: string
+   144→  }>
+   145→}
+   146→
+   147→export interface AgentSkillContextCompressionPolicyV1 {
+   148→  version: 1
+   149→  sourceKeys: readonly string[]
+   150→  minimumOriginalTokens: number
+   151→  maxSourcesPerTask: number
+   152→  maxAttemptsPerSource: number
+   153→  maxAnchors: number
+   154→  maxOutputTokens: number
+   155→  maxFullTextFallbackTokens: number
+   156→  maxFullTextBudgetScale: number
+   157→}
+   158→
+   159→export interface AgentSkillContextGatewayPolicyV1 {
+   160→  version: 1
+   161→  /** Current Gateway execution is always authoritative for declared targets. */
+   162→  rollout: 'required'
+   163→  /**
+   164→   * Optional target boundary. When present, it documents the registered
+   165→   * table.field targets whose candidates carry Gateway evidence.
+   166→   */
+   167→  requiredWriteTargets?: readonly string[]
+   168→  providerSourceKeys: readonly string[]
+   169→  allowedResourceKinds: readonly ContextResourceKind[]
+   170→  allowedDepths: readonly ContextResourceDepthV1[]
+   171→  maxReadCalls: number
+   172→  maxRetrievedTokens: number
+   173→  maxPlanningSteps: number
+   174→  maxPlanningModelTokens: number
+   175→  allowOriginalRead: boolean
+   176→  additionalReadToolNames: readonly string[]
+   177→}
+   178→
+   179→export interface AgentSkillDefinitionV1 {
+   180→  version: 1
+   181→  id: string
+   182→  agentId: DomainAgentId
+   183→  defaultForAgent: boolean
+   184→  label: string
+   185→  owner: string
+   186→  promptVersion: string
+   187→  executionMode: AgentSkillExecutionModeV1
+   188→  contextTaskKind: AgentContextTaskKind
+   189→  /** Tool-backed sources are derived from the Tool Registry, never copied here. */
+   190→  readToolNames: readonly string[]
+   191→  /** Sources assembled directly by the domain copilot. */
+   192→  contextSourceKeys: readonly string[]
+   193→  /** Sources enabled only by an explicit runtime boundary, such as a POV character. */
+   194→  optionalContextSourceKeys: readonly string[]
+   195→  inputPolicy: AgentSkillInputPolicyV1
+   196→  contextCompression: AgentSkillContextCompressionPolicyV1
+   197→  /**
+   198→   * Present only when the Skill supports progressive resource disclosure.
+   199→   * Other Skills receive bounded context exclusively from their registered
+   200→   * contextSourceKeys/readToolNames; omission is a current explicit boundary,
+   201→   * not a compatibility or rollout state.
+   202→   */
+   203→  contextGateway?: AgentSkillContextGatewayPolicyV1
+   204→  maxOutputTokens: number
+   205→  writeTargets: readonly AgentSkillWriteTargetV1[]
+   206→  lastVerifiedAt: string
+   207→  regressionTests: readonly string[]
+   208→}
+   209→
+   210→const OUTLINE_CONTEXT_SOURCE_KEYS = [
+   211→  'ragSelection',
+   212→] as const
+   213→
+   214→const OUTLINE_CONTEXT_GATEWAY_POLICY = {
+   215→  version: 1,
+   216→  rollout: 'required',
+   217→  requiredWriteTargets: [
+   218→    'outlineNodes.parentId',
+   219→    'outlineNodes.type',
+   220→    'outlineNodes.title',
+   221→    'outlineNodes.summary',
+   222→    'outlineNodes.order',
+   223→  ],
+   224→  providerSourceKeys: ['ragSelection'],
+   225→  allowedResourceKinds: [
+   226→    'world', 'worldview-field', 'world-link', 'story-core-field',
+   227→    'character', 'character-relation', 'story-arc', 'storyline-progress',
+   228→    'outline-node', 'detailed-outline', 'narrative-blueprint', 'chapter',
+   229→    'foreshadow', 'location', 'codex-entry', 'fact', 'reference',
+   230→  ],
+   231→  allowedDepths: ['index', 'summary', 'focused', 'full', 'original'],
+   232→  maxReadCalls: 8,
+   233→  maxRetrievedTokens: 64_000,
+   234→  maxPlanningSteps: 8,
+   235→  maxPlanningModelTokens: 64_000,
+   236→  allowOriginalRead: true,
+   237→  additionalReadToolNames: [
+   238→    'list_context_catalog', 'search_context', 'read_context_resource', 'read_original_evidence',
+   239→  ],
+   240→} as const satisfies AgentSkillContextGatewayPolicyV1
+   241→
+   242→const PRODUCT_PRODUCTION_WORLD_GATEWAY_POLICY = {
+   243→  version: 1,
+   244→  rollout: 'required',
+   245→  providerSourceKeys: ['worldRelease'],
+   246→  allowedResourceKinds: [...CONTEXT_RESOURCE_KINDS_V1],
+   247→  allowedDepths: ['index', 'summary', 'focused', 'full', 'original'],
+   248→  maxReadCalls: 200,
+   249→  maxRetrievedTokens: 100_000,
+   250→  maxPlanningSteps: 8,
+   251→  maxPlanningModelTokens: 24_000,
+   252→  allowOriginalRead: true,
+   253→  additionalReadToolNames: [
+   254→    'list_context_catalog', 'search_context', 'read_context_resource', 'read_original_evidence',
+   255→  ],
+   256→} as const satisfies AgentSkillContextGatewayPolicyV1
+   257→
+   258→const SCREENPLAY_SOURCE_ANALYSIS_CONTEXT_KEYS = ['adaptation.sourceManifest', 'adaptation.sourceContent'] as const
+   259→const SCREENPLAY_CAUSAL_CONTEXT_KEYS = ['adaptation.sourceManifest', 'adaptation.sourceContent', 'adaptation.sourceFacts'] as const
+   260→const SCREENPLAY_BRIEF_CONTEXT_KEYS = ['adaptation.sourceManifest', 'adaptation.sourceContent', 'adaptation.sourceFacts', 'characters'] as const
+   261→const SCREENPLAY_DECISION_CONTEXT_KEYS = ['adaptation.sourceManifest', 'adaptation.sourceContent', 'adaptation.sourceFacts', 'adaptation.currentBrief'] as const
+   262→const SCREENPLAY_BEAT_CONTEXT_KEYS = ['adaptation.sourceManifest', 'adaptation.sourceContent', 'adaptation.sourceFacts', 'adaptation.decisions', 'adaptation.currentBrief'] as const
+   263→const SCREENPLAY_CARD_CONTEXT_KEYS = ['adaptation.sourceManifest', 'adaptation.sourceContent', 'adaptation.sourceFacts', 'adaptation.decisions', 'adaptation.currentBrief', 'screenplay.beats'] as const
+   264→const SCREENPLAY_DRAFT_CONTEXT_KEYS = ['adaptation.sourceManifest', 'adaptation.sourceContent', 'adaptation.sourceFacts', 'adaptation.decisions', 'adaptation.currentBrief', 'screenplay.beats', 'screenplay.sceneCards', 'screenplay.currentScenes', 'characters'] as const
+   265→const SCREENPLAY_REVIEW_CONTEXT_KEYS = ['adaptation.sourceManifest', 'adaptation.sourceContent', 'adaptation.sourceFacts', 'adaptation.decisions', 'screenplay.sceneCards', 'screenplay.currentScenes'] as const
+   266→const SCREENPLAY_REWRITE_CONTEXT_KEYS = ['adaptation.sourceManifest', 'adaptation.sourceContent', 'adaptation.sourceFacts', 'adaptation.decisions', 'screenplay.sceneCards', 'screenplay.currentScenes', 'screenplay.reviewIssues'] as const
+   267→const COMIC_BRIEF_CONTEXT_KEYS = ['adaptation.sourceManifest', 'adaptation.sourceContent', 'adaptation.sourceFacts'] as const
+   268→const COMIC_DECISION_CONTEXT_KEYS = ['adaptation.sourceManifest', 'adaptation.sourceContent', 'adaptation.sourceFacts', 'adaptation.currentBrief'] as const
+   269→const COMIC_SCRIPT_CONTEXT_KEYS = ['adaptation.sourceManifest', 'adaptation.sourceContent', 'adaptation.sourceFacts', 'adaptation.decisions', 'adaptation.currentBrief'] as const
+   270→const COMIC_PAGE_RHYTHM_CONTEXT_KEYS = ['adaptation.sourceManifest', 'adaptation.sourceContent', 'adaptation.sourceFacts', 'adaptation.decisions', 'adaptation.currentBrief', 'comic.scriptBeats'] as const
+   271→const COMIC_PANEL_PLAN_CONTEXT_KEYS = ['adaptation.sourceManifest', 'adaptation.sourceContent', 'comic.scriptBeats', 'comic.pagePlans'] as const
+   272→const COMIC_VISUAL_BIBLE_CONTEXT_KEYS = ['adaptation.sourceManifest', 'adaptation.sourceContent', 'adaptation.sourceFacts', 'comic.currentPages', 'characters'] as const
+   273→const COMIC_IMAGE_REQUEST_CONTEXT_KEYS = ['adaptation.sourceManifest', 'adaptation.sourceContent', 'comic.currentPages', 'comic.visualBible', 'comic.selectedMedia'] as const
+   274→const COMIC_REVIEW_CONTEXT_KEYS = ['adaptation.sourceManifest', 'adaptation.sourceContent', 'adaptation.sourceFacts', 'adaptation.decisions', 'comic.scriptBeats', 'comic.pagePlans', 'comic.currentPages', 'comic.visualBible', 'comic.selectedMedia'] as const
+   275→const COMIC_REPAIR_CONTEXT_KEYS = [...COMIC_REVIEW_CONTEXT_KEYS, 'comic.reviewIssues'] as const
+   276→const MOTION_DRAMA_SERIES_CONTEXT_KEYS = ['adaptation.sourceManifest', 'adaptation.sourceContent', 'motionDrama.production'] as const
+   277→const MOTION_DRAMA_EPISODE_CONTEXT_KEYS = ['adaptation.sourceManifest', 'adaptation.sourceContent', 'motionDrama.production'] as const
+   278→const SHORT_NOVEL_DESIGN_CONTEXT_SOURCE_KEYS = ['workStatus', 'shortNovel.production'] as const
+   279→const SHORT_NOVEL_MANUSCRIPT_CONTEXT_SOURCE_KEYS = ['workStatus', 'shortNovel.production', 'shortNovel.manuscript'] as const
+   280→const SHORT_NOVEL_INPUT_POLICY: AgentSkillInputPolicyV1 = {
+   281→  sourceKeys: ['shortNovel.production'],
+   282→  states: {
+   283→    empty: { handling: 'require-upstream', instruction: '当前没有短篇生产根；不得调用模型或把长篇流程伪装成短篇。' },
+   284→    partial: { handling: 'reference-and-create', instruction: '只依据作者要求与当前已确认短篇阶段生成本步候选；缺失上游须明确指出。' },
+   285→    complete: { handling: 'grounded-transform', instruction: '锁定短篇已确认 Brief、设计、结构和正文，只生成当前 Skill 的单一候选。' },
+   286→  },
+   287→}
+   288→const SHORT_NOVEL_DESIGN_COMPRESSION_POLICY = compressionPolicy(SHORT_NOVEL_DESIGN_CONTEXT_SOURCE_KEYS)
+   289→const SHORT_NOVEL_MANUSCRIPT_COMPRESSION_POLICY = compressionPolicy(SHORT_NOVEL_MANUSCRIPT_CONTEXT_SOURCE_KEYS)
+   290→
+   291→const STORY_CORE_CONTEXT_SOURCE_KEYS = [
+   292→  'workStatus',
+   293→  'canonAssertions',
+   294→  'worldview',
+   295→  'storyCore',
+   296→  'powerSystem',
+   297→  'codex',
+   298→  'characters',
+   299→  'storyArcs',
+   300→  'existingVolumeOutlines',
+   301→] as const
+   302→
+   303→const CREATIVE_RULES_CONTEXT_SOURCE_KEYS = [
+   304→  'workStatus',
+   305→  'worldview',
+   306→  'storyCore',
+   307→  'creativeRules',
+   308→] as const
+   309→
+   310→const WORLDVIEW_FIELD_CONTEXT_SOURCE_KEYS = [
+   311→  'workStatus',
+   312→  'canonAssertions',
+   313→  'worldview',
+   314→  'storyCore',
+   315→  'powerSystem',
+   316→  'codex',
+   317→  'characters',
+   318→  'creativeRules',
+   319→  'worldRules',
+   320→  'historical',
+   321→  'storyArcs',
+   322→  'existingVolumeOutlines',
+   323→  'references',
+   324→] as const
+   325→
+   326→const WORLDVIEW_EXPAND_CONTEXT_SOURCE_KEYS = [
+   327→  'manualText',
+   328→  'worldGroups',
+   329→  'storyCore',
+   330→  'worldview',
+   331→] as const
+   332→
+   333→const WORLD_SUGGEST_CONTEXT_SOURCE_KEYS = [
+   334→  'manualText',
+   335→  'worldGroups',
+   336→  'storyCore',
+   337→] as const
+   338→
+   339→const CONSTITUTION_EXTRACT_CONTEXT_SOURCE_KEYS = ['constitutionScanSources'] as const
+   340→const CODEX_EXTRACT_CONTEXT_SOURCE_KEYS = ['manualText', 'ragSelection'] as const
+   341→const CODEX_ENRICH_CONTEXT_SOURCE_KEYS = ['ragSelection'] as const
+   342→const CODEX_CANDIDATE_WRITE_FIELDS = [
+   343→  'categoryId', 'name', 'icon', 'summary', 'description', 'fields', 'refs', 'tags',
+   344→  'importance', 'origin', 'sourceEvidenceQuotes', 'sourceContentHash', 'producerRunId',
+   345→  'producerCandidateHash', 'order', 'worldGroupId',
+   346→] as const
+   347→const CULTIVATION_PROGRESS_EXTRACTION_CONTEXT_SOURCE_KEYS = [
+   348→  'chapterContent',
+   349→  'cultivationProgressExtractionBaseline',
+   350→] as const
+   351→const FORESHADOW_SUGGESTION_CONTEXT_SOURCE_KEYS = [
+   352→  'canonAssertions',
+   353→  'worldview',
+   354→  'storyCore',
+   355→  'powerSystem',
+   356→  'cultivationProgress',
+   357→  'codex',
+   358→  'characters',
+   359→  'creativeRules',
+   360→  'worldRules',
+   361→  'historical',
+   362→  'locations',
+   363→  'foreshadowSuggestionBaseline',
+   364→] as const
+   365→const HISTORY_AGENT_CONTEXT_SOURCE_KEYS = ['worldview', 'historyAgentBaseline'] as const
+   366→const REFERENCE_DERIVED_CONTEXT_SOURCE_KEYS = ['referenceDerivedBaseline'] as const
+   367→
+   368→const CHARACTER_SUPPLEMENT_CONTEXT_SOURCE_KEYS = [
+   369→  'targetCharacter',
+   370→  'canonAssertions',
+   371→  'worldview',
+   372→  'storyCore',
+   373→  'powerSystem',
+   374→  'codex',
+   375→  'creativeRules',
+   376→  'worldRules',
+   377→  'locations',
+   378→] as const
+   379→
+   380→const CHARACTER_SUPPLEMENT_OPTIONAL_CONTEXT_SOURCE_KEYS = [
+   381→  'characterFacts',
+   382→  'characterPassages',
+   383→] as const
+   384→
+   385→const CHARACTER_RELATIONSHIP_CONTEXT_SOURCE_KEYS = [
+   386→  'characters',
+   387→  'characterRelations',
+   388→  'outlineSummaries',
+   389→  'writtenChapters',
+   390→] as const
+   391→
+   392→const CHARACTER_RELATIONSHIP_INPUT_POLICY: AgentSkillInputPolicyV1 = {
+   393→  sourceKeys: ['characters', 'outlineSummaries', 'writtenChapters'],
+   394→  states: {
+   395→    empty: { handling: 'create-from-request', instruction: '没有足够的角色与剧情资料时返回空数组，不得编造关系。' },
+   396→    partial: { handling: 'reference-and-create', instruction: '只提取现有资料逐字支持的关系，不补写缺失剧情。' },
+   397→    complete: { handling: 'grounded-transform', instruction: '综合现有角色、关系、大纲与正文，输出可核对的关系候选。' },
+   398→  },
+   399→}
+   400→
+   401→const REFERENCE_DERIVED_INPUT_POLICY: AgentSkillInputPolicyV1 = {
+   402→  sourceKeys: REFERENCE_DERIVED_CONTEXT_SOURCE_KEYS,
+   403→  states: {
+   404→    empty: { handling: 'require-upstream', instruction: '没有已完成的版本化分块分析时不得生成派生结果。' },
+   405→    partial: { handling: 'grounded-transform', instruction: '只整理已登记的分析维度或人物塑造文本，不补造来源内容。' },
+   406→    complete: { handling: 'grounded-transform', instruction: '严格压缩版本化分析证据，保持来源、维度和角色归并可核查。' },
+   407→  },
+   408→}
+   409→
+   410→const CHARACTER_RELATIONSHIP_COMPRESSION_POLICY: AgentSkillContextCompressionPolicyV1 = {
+   411→  version: 1,
+   412→  sourceKeys: CHARACTER_RELATIONSHIP_CONTEXT_SOURCE_KEYS,
+   413→  minimumOriginalTokens: 700,
+   414→  maxSourcesPerTask: 4,
+   415→  maxAttemptsPerSource: 1,
+   416→  maxAnchors: 16,
+   417→  maxOutputTokens: 3_000,
+   418→  maxFullTextFallbackTokens: 12_000,
+   419→  maxFullTextBudgetScale: 1.5,
+   420→}
+   421→
+   422→const WORLD_LOCATION_EXTRACTION_INPUT_POLICY: AgentSkillInputPolicyV1 = {
+   423→  sourceKeys: ['chapterContent'],
+   424→  states: {
+   425→    empty: { handling: 'require-upstream', instruction: '没有已写正文时不得提取重要地点。' },
+   426→    partial: { handling: 'grounded-transform', instruction: '只从当前已写正文明确出现的地点中提取候选。' },
+   427→    complete: { handling: 'grounded-transform', instruction: '综合全部已写章节去重，只保留有明确剧情作用的地点。' },
+   428→  },
+   429→}
+   430→
+   431→const WORLD_LOCATION_EXTRACTION_COMPRESSION_POLICY = compressionPolicy(['chapterContent'])
+   432→
+   433→const WORLD_MAP_CONTEXT_SOURCE_KEYS = ['worldview', 'geography', 'codex', 'locations'] as const
+   434→const WORLD_MAP_INPUT_POLICY: AgentSkillInputPolicyV1 = {
+   435→  sourceKeys: WORLD_MAP_CONTEXT_SOURCE_KEYS,
+   436→  states: {
+   437→    empty: { handling: 'create-from-request', instruction: '当前世界资料为空；只生成最小可用地图，不得声称引用作者设定。' },
+   438→    partial: { handling: 'reference-and-create', instruction: '锁定已有地理实体、名称与空间证据，只补足地图运行所需参数。' },
+   439→    complete: { handling: 'grounded-transform', instruction: '严格依据当前世界的世界观、地理、词条和重要地点生成可核查地图配置。' },
+   440→  },
+   441→}
+   442→const WORLD_MAP_COMPRESSION_POLICY = compressionPolicy(WORLD_MAP_CONTEXT_SOURCE_KEYS)
+   443→
+   444→const PROSE_INVENTORY_EXTRACTION_INPUT_POLICY: AgentSkillInputPolicyV1 = {
+   445→  sourceKeys: ['chapterContent'],
+   446→  states: {
+   447→    empty: { handling: 'require-upstream', instruction: '没有所选章节正文时不得提取物品流水。' },
+   448→    partial: { handling: 'grounded-transform', instruction: '只记录所选正文中明确发生、持有人明确的物品变动。' },
+   449→    complete: { handling: 'grounded-transform', instruction: '逐章提取真实发生的物品变动，保持角色归属、方向和规范名称一致。' },
+   450→  },
+   451→}
+   452→
+   453→const PROSE_INVENTORY_EXTRACTION_COMPRESSION_POLICY = compressionPolicy(['chapterContent'])
+   454→
+   455→const PROSE_STORY_TIMELINE_EXTRACTION_INPUT_POLICY: AgentSkillInputPolicyV1 = {
+   456→  sourceKeys: ['chapterContent'],
+   457→  states: {
+   458→    empty: { handling: 'require-upstream', instruction: '没有已写正文时不得提取故事年表。' },
+   459→    partial: { handling: 'grounded-transform', instruction: '只记录正文中明确发生的剧情事件，不补写缺失时间或因果。' },
+   460→    complete: { handling: 'grounded-transform', instruction: '逐章提取正文明确发生的剧情大事，保持故事时间、重要度和章节归属可核对。' },
+   461→  },
+   462→}
+   463→
+   464→const PROSE_STORY_TIMELINE_EXTRACTION_COMPRESSION_POLICY = compressionPolicy(['chapterContent', 'storyTimelineTarget'])
+   465→
+   466→const PROSE_SELECTION_INPUT_POLICY: AgentSkillInputPolicyV1 = {
+   467→  sourceKeys: ['manualText'],
+   468→  states: {
+   469→    empty: { handling: 'require-author-input', instruction: '没有作者冻结的选中文字时不得执行局部编辑或查漏。' },
+   470→    partial: { handling: 'grounded-transform', instruction: '只处理作者冻结的选中文字，不推断或补写选区外正文。' },
+   471→    complete: { handling: 'grounded-transform', instruction: '只处理作者冻结的选中文字，不推断或补写选区外正文。' },
+   472→  },
+   473→}
+   474→
+   475→const PROSE_SELECTION_COMPRESSION_POLICY = compressionPolicy(['manualText'])
+   476→const ADAPTATION_INPUT_POLICY: AgentSkillInputPolicyV1 = {
+   477→  sourceKeys: ['adaptation.sourceManifest', 'adaptation.sourceContent'],
+   478→  states: {
+   479→    empty: { handling: 'require-upstream', instruction: '没有冻结来源清单和授权来源内容时不得生成改编候选。' },
+   480→    partial: { handling: 'grounded-transform', instruction: '只依据实际交付的来源单元生成，并明确未覆盖内容，不得假装读过全书。' },
+   481→    complete: { handling: 'grounded-transform', instruction: '严格依据冻结来源、已确认改编约束和目标媒介合同生成可审查候选。' },
+   482→  },
+   483→}
+   484→const FORESHADOW_SUGGESTION_COMPRESSION_POLICY = compressionPolicy(FORESHADOW_SUGGESTION_CONTEXT_SOURCE_KEYS)
+   485→const HISTORY_AGENT_COMPRESSION_POLICY = compressionPolicy(HISTORY_AGENT_CONTEXT_SOURCE_KEYS)
+   486→const REFERENCE_DERIVED_COMPRESSION_POLICY = compressionPolicy(REFERENCE_DERIVED_CONTEXT_SOURCE_KEYS)
+   487→
+   488→const HISTORY_AGENT_INPUT_POLICY: AgentSkillInputPolicyV1 = {
+   489→  sourceKeys: HISTORY_AGENT_CONTEXT_SOURCE_KEYS,
+   490→  states: {
+   491→    empty: { handling: 'require-author-input', instruction: '目标历史条目不存在时不得调用模型。' },
+   492→    partial: { handling: 'grounded-transform', instruction: '只依据已登记目标条目和可用世界观提供咨询，不补写缺失 Canon。' },
+   493→    complete: { handling: 'grounded-transform', instruction: '依据完整登记输入提供可审查建议，只写候选结果字段。' },
+   494→  },
+   495→}
+   496→
+   497→const OUTLINE_STORY_ARC_CONTEXT_SOURCE_KEYS = [
+   498→  'workStatus',
+   499→  'canonAssertions',
+   500→  'worldview',
+   501→  'storyCore',
+   502→  'characterDrivenPlan',
+   503→  'powerSystem',
+   504→  'cultivationProgress',
+   505→  'codex',
+   506→  'characters',
+   507→  'creativeRules',
+   508→  'worldRules',
+   509→  'historical',
+   510→  'locations',
+   511→  'storyArcs',
+   512→  'storylineProgress',
+   513→  'existingVolumeOutlines',
+   514→  'writtenChapterProgress',
+   515→] as const
+   516→
+   517→const OUTLINE_STORYLINE_PROGRESS_CONTEXT_SOURCE_KEYS = [
+   518→  'workStatus',
+   519→  'storyArcs',
+   520→  'storylineProgress',
+   521→  'chapterContent',
+   522→] as const
+   523→
+   524→const OUTLINE_CHARACTER_DRIVEN_CONTEXT_SOURCE_KEYS = [
+   525→  'workStatus',
+   526→  'canonAssertions',
+   527→  'worldview',
+   528→  'storyCore',
+   529→  'activeNarrativeBlueprint',
+   530→  'powerSystem',
+   531→  'cultivationProgress',
+   532→  'codex',
+   533→  'characters',
+   534→  'creativeRules',
+   535→  'worldRules',
+   536→  'historical',
+   537→  'locations',
+   538→  'storyArcs',
+   539→  'storylineProgress',
+   540→  'existingVolumeOutlines',
+   541→  'writtenChapterProgress',
+   542→] as const
+   543→
+   544→const OUTLINE_CHARACTER_REVISION_CONTEXT_SOURCE_KEYS = [
+   545→  'manualText',
+   546→  'storyCore',
+   547→  'characters',
+   548→  'characterRelations',
+   549→  'storyArcs',
+   550→  'storylineProgress',
+   551→  'existingVolumeOutlines',
+   552→  'writtenChapterProgress',
+   553→  'currentFacts',
+   554→  'chapterContinuityHandoff',
+   555→  'previousPlanReconciliation',
+   556→  'recentChapterSummaries',
+   557→  'characterFacts',
+   558→  'characterPassages',
+   559→  'foreshadows',
+   560→  'canonAssertions',
+   561→  'worldRules',
+   562→  'codex',
+   563→] as const
+   564→
+   565→export const OUTLINE_IMPACT_REGENERATION_CONTEXT_SOURCE_KEYS = [
+   566→  'chapterContent',
+   567→  'chapterOutline',
+   568→  'adjacentChapterOutlines',
+   569→  'canonAssertions',
+   570→  'storyCore',
+   571→  'characters',
+   572→  'storyArcs',
+   573→  'writtenChapterProgress',
+   574→  'consistencyReport',
+   575→] as const
+   576→
+   577→export const OUTLINE_DETAIL_CONTEXT_SOURCE_KEYS = ['ragSelection'] as const
+   578→
+   579→const PROSE_CONTEXT_SOURCE_KEYS = ['ragSelection'] as const
+   580→
+   581→const PROSE_EMOTION_BEAT_CONTEXT_SOURCE_KEYS = [
+   582→  'chapterOutline',
+   583→  'detailedOutline',
+   584→  'previousChapterEnding',
+   585→  'worldview',
+   586→  'storyCore',
+   587→  'characters',
+   588→  'creativeRules',
+   589→] as const
+   590→
+   591→export const PROSE_ORGANIZATION_CONTEXT_SOURCE_KEYS = [
+   592→  'chapterContent',
+   593→  'chapterOutline',
+   594→  'detailedOutline',
+   595→  'stateCards',
+   596→  'currentFacts',
+   597→  'characters',
+   598→  'characterRelations',
+   599→  'itemLedger',
+   600→  'foreshadows',
+   601→  'storyArcs',
+   602→  'storylineProgress',
+   603→  'canonAssertions',
+   604→  'characterKnowledge',
+   605→  'retrievedPassages',
+   606→] as const
+   607→
+   608→export const PROSE_MEMORY_CONTEXT_SOURCE_KEYS = [
+   609→  'chapterContent',
+   610→  'chapterOutline',
+   611→  'detailedOutline',
+   612→  'chapterContinuityHandoff',
+   613→  'previousPlanReconciliation',
+   614→] as const
+   615→
+   616→export const PROSE_CONSISTENCY_CONTEXT_SOURCE_KEYS = [
+   617→  'chapterContent',
+   618→  'characters',
+   619→  'heldItems',
+   620→] as const
+   621→
+   622→const WORLD_FOUNDATION_INPUT_POLICY = {
+   623→  sourceKeys: ['worldview', 'powerSystem', 'codex'],
+   624→  states: {
+   625→    empty: {
+   626→      handling: 'create-from-request',
+   627→      instruction: '当前没有已填写的世界基础；只依据作者本轮要求创建候选，不得声称引用了既有设定。',
+   628→    },
+   629→    partial: {
+   630→      handling: 'reference-and-create',
+   631→      instruction: '把已有世界字段视为约束，只补足缺失联系，不覆盖或擅改作者已填写内容。',
+   632→    },
+   633→    complete: {
+   634→      handling: 'grounded-transform',
+   635→      instruction: '严格依据已填写的世界基础生成，并保持规则、术语与因果一致。',
+   636→    },
+   637→  },
+   638→} as const satisfies AgentSkillInputPolicyV1
+   639→
+   640→const STORY_CORE_INPUT_POLICY = {
+   641→  sourceKeys: ['worldview', 'storyCore'],
+   642→  states: {
+   643→    empty: {
+   644→      handling: 'create-from-request',
+   645→      instruction: '世界观与故事核心都为空；若已有角色、故事线或大纲，可把它们作为下游反推证据创建目标字段候选，否则只依据作者要求创建；任何反推都只是候选，不得冒充已确认设定。',
+   646→    },
+   647→    partial: {
+   648→      handling: 'reference-and-create',
+   649→      instruction: '锁定已有世界观或故事核心字段，只补足当前目标字段；可用角色、故事线或大纲反推缺失联系，但不得覆盖作者已填写的其他字段，也不得把反推内容写入非目标字段。',
+   650→    },
+   651→    complete: {
+   652→      handling: 'grounded-transform',
+   653→      instruction: '严格依据已填写世界观与故事核心生成目标字段，并用现有角色、故事线和大纲检查下游兼容性；下游证据不能覆盖已确认上游。',
+   654→    },
+   655→  },
+   656→} as const satisfies AgentSkillInputPolicyV1
+   657→
+   658→const CREATIVE_RULES_INPUT_POLICY = {
+   659→  sourceKeys: ['worldview', 'storyCore', 'creativeRules'],
+   660→  states: {
+   661→    empty: {
+   662→      handling: 'create-from-request',
+   663→      instruction: '世界观、故事核心和创作规则都为空；只依据项目概况与本轮目标创建单字段建议，不得声称引用了作者尚未填写的设定。',
+   664→    },
+   665→    partial: {
+   666→      handling: 'reference-and-create',
+   667→      instruction: '锁定作者已经填写的世界、故事和其它创作规则，只补当前目标字段；缺失内容可以给出最小建议，不得顺手覆盖其它字段。',
+   668→    },
+   669→    complete: {
+   670→      handling: 'grounded-transform',
+   671→      instruction: '严格依据已有世界观、故事核心和创作规则建议当前目标字段，并检查它与其它规则是否可共同执行。',
+   672→    },
+   673→  },
+   674→} as const satisfies AgentSkillInputPolicyV1
+   675→
+   676→const WORLDVIEW_FIELD_INPUT_POLICY = {
+   677→  sourceKeys: ['worldview', 'storyCore', 'characters', 'storyArcs'],
+   678→  states: {
+   679→    empty: {
+   680→      handling: 'create-from-request',
+   681→      instruction: '世界基座和下游故事资料都为空；只依据作者本轮要求创建目标字段候选，不得声称引用了既有设定。',
+   682→    },
+   683→    partial: {
+   684→      handling: 'reference-and-create',
+   685→      instruction: '锁定已有世界字段；缺失上游可依据故事核心、角色、故事线或大纲反推，但只能写当前目标字段，推断不得冒充已确认设定。',
+   686→    },
+   687→    complete: {
+   688→      handling: 'grounded-transform',
+   689→      instruction: '严格依据已有世界基座并用下游故事资料核对兼容性；下游证据不能覆盖已确认的世界设定。',
+   690→    },
+   691→  },
+   692→} as const satisfies AgentSkillInputPolicyV1
+   693→
+   694→const CHARACTER_INPUT_POLICY = {
+   695→  sourceKeys: ['worldview', 'powerSystem', 'codex', 'storyCore', 'characters', 'worldRules', 'historical'],
+   696→  states: {
+   697→    empty: {
+   698→      handling: 'create-from-request',
+   699→      instruction: '当前没有可用设定或角色主档；依据作者要求创建角色候选，并避免伪造既有关系。',
+   700→    },
+   701→    partial: {
+   702→      handling: 'reference-and-create',
+   703→      instruction: '保留已有设定与角色约束，在空白处创建角色；不得复制已有角色或臆造已确认关系。',
+   704→    },
+   705→    complete: {
+   706→      handling: 'grounded-transform',
+   707→      instruction: '严格依据现有世界与角色阵容创建互补角色，保持术语、能力边界和关系一致。',
+   708→    },
+   709→  },
+   710→} as const satisfies AgentSkillInputPolicyV1
+   711→
+   712→const CHARACTER_SUPPLEMENT_INPUT_POLICY = {
+   713→  sourceKeys: ['targetCharacter'],
+   714→  states: {
+   715→    empty: {
+   716→      handling: 'require-author-input',
+   717→      instruction: '目标角色不存在或不属于当前世界；停止补全，不得创建替代角色。',
+   718→    },
+   719→    partial: {
+   720→      handling: 'reference-and-create',
+   721→      instruction: '锁定目标角色已有设定，只补全作者本次选择的字段；不得修改身份轴、关系或其它字段。',
+   722→    },
+   723→    complete: {
+   724→      handling: 'grounded-transform',
+   725→      instruction: '严格依据目标角色完整设定补全作者本次选择的字段；若启用剧情证据，还必须服从已确认事实与正文表现。',
+   726→    },
+   727→  },
+   728→} as const satisfies AgentSkillInputPolicyV1
+   729→
+   730→const INSPIRATION_INPUT_POLICY = {
+   731→  sourceKeys: ['inspirationWorkspace'],
+   732→  states: {
+   733→    empty: {
+   734→      handling: 'require-author-input',
+   735→      instruction: '没有作者选择的灵感碎片时不得反推；要求作者先提供或选择灵感。',
+   736→    },
+   737→    partial: {
+   738→      handling: 'reference-and-create',
+   739→      instruction: '以已选灵感为唯一作者种子，明确区分原始灵感与补全推断。',
+   740→    },
+   741→    complete: {
+   742→      handling: 'grounded-transform',
+   743→      instruction: '完整保留已选灵感的核心意图，再将其结构化为可确认候选。',
+   744→    },
+   745→  },
+   746→} as const satisfies AgentSkillInputPolicyV1
+   747→
+   748→const OUTLINE_VOLUME_INPUT_POLICY = {
+   749→  sourceKeys: ['worldview', 'storyCore', 'characters', 'storyArcs'],
+   750→  states: {
+   751→    empty: {
+   752→      handling: 'create-from-request',
+   753→      instruction: '上游设定为空；仅按作者本轮要求创建最小可用卷纲候选，不把推断冒充 Canon。',
+   754→    },
+   755→    partial: {
+   756→      handling: 'reference-and-create',
+   757→      instruction: '锁定已有上游设定，围绕缺失部分补足卷级结构，不得改写已确认事实。',
+   758→    },
+   759→    complete: {
+   760→      handling: 'grounded-transform',
+   761→      instruction: '严格把已有世界、故事核心、角色与故事线编排为卷纲，不新增冲突前提。',
+   762→    },
+   763→  },
+   764→} as const satisfies AgentSkillInputPolicyV1
+   765→
+   766→const OUTLINE_STORY_ARC_INPUT_POLICY = {
+   767→  sourceKeys: ['worldview', 'storyCore', 'characters'],
+   768→  states: {
+   769→    empty: {
+   770→      handling: 'create-from-request',
+   771→      instruction: '上游世界、故事核心和角色均为空；只按作者本轮要求创建最小故事线候选，所有补全都不得冒充已确认设定。',
+   772→    },
+   773→    partial: {
+   774→      handling: 'reference-and-create',
+   775→      instruction: '锁定已有上游内容并围绕缺失部分补足故事线；清楚区分作者事实与规划推断，不覆盖已确认设定。',
+   776→    },
+   777→    complete: {
+   778→      handling: 'grounded-transform',
+   779→      instruction: '严格把已有世界、故事核心和角色目标编排为主线/支线，保持规则、动机、因果和阶段一致。',
+   780→    },
+   781→  },
+   782→} as const satisfies AgentSkillInputPolicyV1
+   783→
+   784→const OUTLINE_STORYLINE_PROGRESS_INPUT_POLICY = {
+   785→  sourceKeys: ['storyArcs', 'storylineProgress', 'chapterContent'],
+   786→  states: {
+   787→    empty: {
+   788→      handling: 'require-author-input',
+   789→      instruction: '缺少已登记故事线或目标章节正文时停止映射；不得凭空创建进度事实。',
+   790→    },
+   791→    partial: {
+   792→      handling: 'reference-and-create',
+   793→      instruction: '只把正文逐字证据映射到已登记故事线；缺少的阶段或交汇不得臆造，疑似新线只能作为待确认候选。',
+   794→    },
+   795→    complete: {
+   796→      handling: 'grounded-transform',
+   797→      instruction: '严格依据当前章节正文、已登记故事线及作者确认的历史进度，输出可核查的进度、交汇和疑似新线候选。',
+   798→    },
+   799→  },
+   800→} as const satisfies AgentSkillInputPolicyV1
+   801→
+   802→const OUTLINE_CHARACTER_DRIVEN_INPUT_POLICY = {
+   803→  sourceKeys: ['characterDrivenPlan', 'storyCore', 'characters', 'storyArcs'],
+   804→  states: {
+   805→    empty: {
+   806→      handling: 'require-author-input',
+   807→      instruction: '缺少可执行的角色弧光起点和终点时停止生成，先由作者选择角色并填写状态变化。',
+   808→    },
+   809→    partial: {
+   810→      handling: 'reference-and-create',
+   811→      instruction: '锁定作者填写的角色弧光；以已有世界、故事核心和故事线为约束补足卷章编排，不得另起主线或改写角色终点。',
+   812→    },
+   813→    complete: {
+   814→      handling: 'grounded-transform',
+   815→      instruction: '严格把作者填写的全部角色弧光编入既有主线/支线和卷章结构，并明确每章的因果、角色参与和弧光推进。',
+   816→    },
+   817→  },
+   818→} as const satisfies AgentSkillInputPolicyV1
+   819→
+   820→const OUTLINE_CHARACTER_REVISION_INPUT_POLICY = {
+   821→  sourceKeys: ['existingVolumeOutlines', 'writtenChapterProgress'],
+   822→  states: {
+   823→    empty: {
+   824→      handling: 'require-upstream',
+   825→      instruction: '当前没有可重规划的章节大纲；停止生成并要求作者先建立章纲。',
+   826→    },
+   827→    partial: {
+   828→      handling: 'reference-and-create',
+   829→      instruction: '以现有章纲、作者保护边界和可用正文证据为准；证据缺失时只提出可审查建议，不把推断写成既成事实。',
+   830→    },
+   831→    complete: {
+   832→      handling: 'grounded-transform',
+   833→      instruction: '严格依据已写进度、连续性交接、事实、角色和故事线分析影响；已写区只读，只有作者最终勾选的未来大纲 patch 可写。',
+   834→    },
+   835→  },
+   836→} as const satisfies AgentSkillInputPolicyV1
+   837→
+   838→const OUTLINE_IMPACT_REGENERATION_INPUT_POLICY = {
+   839→  sourceKeys: ['chapterContent', 'chapterOutline'],
+   840→  states: {
+   841→    empty: {
+   842→      handling: 'require-upstream',
+   843→      instruction: '缺少来源正文或目标后续章纲时停止重建，不得创建替代目标。',
+   844→    },
+   845→    partial: {
+   846→      handling: 'require-upstream',
+   847→      instruction: '来源正文与目标章纲必须同时存在；资料不完整时保持当前摘要并要求作者补齐。',
+   848→    },
+   849→    complete: {
+   850→      handling: 'grounded-transform',
+   851→      instruction: '严格依据 H57 当前影响项与登记 Context 重建一个后续章纲摘要，只输出可确认候选，不改正文、事实或其它大纲字段。',
+   852→    },
+   853→  },
+   854→} as const satisfies AgentSkillInputPolicyV1
+   855→
+   856→const OUTLINE_CHAPTER_INPUT_POLICY = {
+   857→  sourceKeys: ['worldview', 'storyCore', 'characters', 'storyArcs', 'existingVolumeOutlines'],
+   858→  states: {
+   859→    empty: {
+   860→      handling: 'require-upstream',
+   861→      instruction: '缺少可展开的上游卷纲时停止生成，先完成或确认卷纲。',
+   862→    },
+   863→    partial: {
+   864→      handling: 'reference-and-create',
+   865→      instruction: '以现有卷纲和已填写设定为边界补足章纲；缺失设定只能作为候选假设，不得冒充事实。',
+   866→    },
+   867→    complete: {
+   868→      handling: 'grounded-transform',
+   869→      instruction: '严格依据卷纲与完整上游设定拆分章纲，保持剧情线、角色阶段和因果顺序。',
+   870→    },
+   871→  },
+   872→} as const satisfies AgentSkillInputPolicyV1
+   873→
+   874→const OUTLINE_DETAIL_INPUT_POLICY = {
+   875→  sourceKeys: [
+   876→    'chapterOutline',
+   877→    'storyArcs',
+   878→    'storylineProgress',
+   879→    'writtenChapterProgress',
+   880→    'activeNarrativeBlueprint',
+   881→  ],
+   882→  states: {
+   883→    empty: {
+   884→      handling: 'require-upstream',
+   885→      instruction: '缺少目标章纲时停止生成，先建立或确认该章的标题与摘要。',
+   886→    },
+   887→    partial: {
+   888→      handling: 'reference-and-create',
+   889→      instruction: '以现有章纲和已填写设定为硬边界补足场景；未填写的世界或角色细节只能留作候选，不得冒充 Canon。',
+   890→    },
+   891→    complete: {
+   892→      handling: 'grounded-transform',
+   893→      instruction: '严格依据章纲、故事核心、角色、相邻章和当前细纲拆分场景，避免重复已有场景并保持因果与信息边界。',
+   894→    },
+   895→  },
+   896→} as const satisfies AgentSkillInputPolicyV1
+   897→
+   898→const PROSE_INPUT_POLICY = {
+   899→  sourceKeys: [
+   900→    'chapterOutline',
+   901→    'detailedOutline',
+   902→    'storyArcs',
+   903→    'storylineProgress',
+   904→    'activeNarrativeBlueprint',
+   905→    'chapterContinuityHandoff',
+   906→    'characterKnowledge',
+   907→    'currentFacts',
+   908→    'consistencyDossier',
+   909→  ],
+   910→  states: {
+   911→    empty: {
+   912→      handling: 'require-upstream',
+   913→      instruction: '缺少章纲时不得直接生成正文，先完成或确认上游章纲。',
+   914→    },
+   915→    partial: {
+   916→      handling: 'reference-and-create',
+   917→      instruction: '章纲和已有设定是硬边界；只在未规定处进行文学创作，不补写成新的已确认设定。',
+   918→    },
+   919→    complete: {
+   920→      handling: 'grounded-transform',
+   921→      instruction: '严格落实章纲、细纲、故事核心和角色约束，同时遵守本章信息边界。',
+   922→    },
+   923→  },
+   924→} as const satisfies AgentSkillInputPolicyV1
+   925→
+   926→const PROSE_EMOTION_BEAT_INPUT_POLICY = {
+   927→  sourceKeys: ['chapterOutline', 'detailedOutline', 'storyCore', 'characters'],
+   928→  states: {
+   929→    empty: {
+   930→      handling: 'require-upstream',
+   931→      instruction: '缺少当前章纲时不得规划情感节拍，先完成或确认该章标题与摘要。',
+   932→    },
+   933→    partial: {
+   934→      handling: 'reference-and-create',
+   935→      instruction: '以现有章纲和已填写设定为硬边界规划节拍，未规定细节不得冒充已确认剧情。',
+   936→    },
+   937→    complete: {
+   938→      handling: 'grounded-transform',
+   939→      instruction: '严格落实章纲、细纲、故事核心与角色约束，让 3–6 个节拍形成可执行的情感递进或反转。',
+   940→    },
+   941→  },
+   942→} as const satisfies AgentSkillInputPolicyV1
+   943→
+   944→const PROSE_POST_ADOPTION_INPUT_POLICY = {
+   945→  sourceKeys: ['chapterContent'],
+   946→  states: {
+   947→    empty: {
+   948→      handling: 'require-author-input',
+   949→      instruction: '章节没有已采纳正文时不得生成章后交接或章节记忆。',
+   950→    },
+   951→    partial: {
+   952→      handling: 'grounded-transform',
+   953→      instruction: '只从当前已采纳正文抽取有逐字证据的变化，不把未完成片段补写成事实。',
+   954→    },
+   955→    complete: {
+   956→      handling: 'grounded-transform',
+   957→      instruction: '严格依据当前已采纳正文抽取交接与记忆，计划和设定只能用于核对，不能冒充已发生事实。',
+   958→    },
+   959→  },
+   960→} as const satisfies AgentSkillInputPolicyV1
+   961→
+   962→function compressionPolicy(
+   963→  sourceKeys: readonly string[],
+   964→): AgentSkillContextCompressionPolicyV1 {
+   965→  return {
+   966→    version: 1,
+   967→    sourceKeys,
+   968→    minimumOriginalTokens: 1_600,
+   969→    maxSourcesPerTask: 1,
+   970→    maxAttemptsPerSource: 2,
+   971→    maxAnchors: 12,
+   972→    maxOutputTokens: 1_800,
+   973→    maxFullTextFallbackTokens: 12_000,
+   974→    maxFullTextBudgetScale: 2,
+   975→  }
+   976→}
+   977→
+   978→const WORLD_COMPRESSION_POLICY = compressionPolicy(['worldview', 'powerSystem', 'codex'])
+   979→const STORY_CORE_COMPRESSION_POLICY = compressionPolicy([
+   980→  'worldview',
+   981→  'storyCore',
+   982→  'powerSystem',
+   983→  'codex',
+   984→  'characters',
+   985→  'storyArcs',
+   986→  'existingVolumeOutlines',
+   987→])
+   988→const CREATIVE_RULES_COMPRESSION_POLICY = compressionPolicy([
+   989→  'worldview',
+   990→  'storyCore',
+   991→  'creativeRules',
+   992→])
+   993→const WORLDVIEW_FIELD_COMPRESSION_POLICY = compressionPolicy([
+   994→  'worldview',
+   995→  'storyCore',
+   996→  'powerSystem',
+   997→  'codex',
+   998→  'characters',
+   999→  'historical',
+  1000→  'storyArcs',
+  1001→  'existingVolumeOutlines',
+  1002→  'references',
+  1003→])
+  1004→const WORLDVIEW_EXPAND_COMPRESSION_POLICY = compressionPolicy([
+  1005→  'manualText',
+  1006→  'worldGroups',
+  1007→  'storyCore',
+  1008→  'worldview',
+  1009→])
+  1010→const WORLD_SUGGEST_COMPRESSION_POLICY = compressionPolicy([
+  1011→  'manualText',
+  1012→  'worldGroups',
+  1013→  'storyCore',
+  1014→])
+  1015→const CONSTITUTION_EXTRACT_COMPRESSION_POLICY = compressionPolicy(['constitutionScanSources'])
+  1016→const CODEX_EXTRACT_COMPRESSION_POLICY = compressionPolicy(CODEX_EXTRACT_CONTEXT_SOURCE_KEYS)
+  1017→const CODEX_ENRICH_COMPRESSION_POLICY = compressionPolicy(CODEX_ENRICH_CONTEXT_SOURCE_KEYS)
+  1018→const CULTIVATION_PROGRESS_EXTRACTION_COMPRESSION_POLICY = compressionPolicy(
+  1019→  CULTIVATION_PROGRESS_EXTRACTION_CONTEXT_SOURCE_KEYS,
+  1020→)
+  1021→const CHARACTER_COMPRESSION_POLICY = compressionPolicy([
+  1022→  'worldview',
+  1023→  'powerSystem',
+  1024→  'codex',
+  1025→  'storyCore',
+  1026→  'characters',
+  1027→  'worldRules',
+  1028→  'historical',
+  1029→])
+  1030→const CHARACTER_SUPPLEMENT_COMPRESSION_POLICY = compressionPolicy([
+  1031→  'worldview',
+  1032→  'storyCore',
+  1033→  'powerSystem',
+  1034→  'codex',
+  1035→  'creativeRules',
+  1036→  'worldRules',
+  1037→  'locations',
+  1038→  'characterFacts',
+  1039→  'characterPassages',
+  1040→])
+  1041→const INSPIRATION_COMPRESSION_POLICY = compressionPolicy(['inspirationWorkspace'])
+  1042→const OUTLINE_COMPRESSION_POLICY = compressionPolicy(['ragSelection'])
+  1043→const OUTLINE_STORY_ARC_COMPRESSION_POLICY = compressionPolicy([
+  1044→  'worldview',
+  1045→  'storyCore',
+  1046→  'characterDrivenPlan',
+  1047→  'powerSystem',
+  1048→  'codex',
+  1049→  'characters',
+  1050→  'historical',
+  1051→  'storyArcs',
+  1052→  'existingVolumeOutlines',
+  1053→])
+  1054→const OUTLINE_STORYLINE_PROGRESS_COMPRESSION_POLICY = compressionPolicy([
+  1055→  'storyArcs',
+  1056→  'storylineProgress',
+  1057→  'chapterContent',
+  1058→])
+  1059→const OUTLINE_CHARACTER_DRIVEN_COMPRESSION_POLICY = compressionPolicy([
+  1060→  'characterDrivenPlan',
+  1061→  'worldview',
+  1062→  'storyCore',
+  1063→  'activeNarrativeBlueprint',
+  1064→  'powerSystem',
+  1065→  'codex',
+  1066→  'characters',
+  1067→  'historical',
+  1068→  'storyArcs',
+  1069→  'existingVolumeOutlines',
+  1070→])
+  1071→const OUTLINE_CHARACTER_REVISION_COMPRESSION_POLICY = compressionPolicy([
+  1072→  'storyCore',
+  1073→  'characters',
+  1074→  'characterRelations',
+  1075→  'storyArcs',
+  1076→  'storylineProgress',
+  1077→  'existingVolumeOutlines',
+  1078→  'currentFacts',
+  1079→  'chapterContinuityHandoff',
+  1080→  'previousPlanReconciliation',
+  1081→  'recentChapterSummaries',
+  1082→  'characterFacts',
+  1083→  'characterPassages',
+  1084→  'foreshadows',
+  1085→  'canonAssertions',
+  1086→  'worldRules',
+  1087→  'codex',
+  1088→])
+  1089→const OUTLINE_IMPACT_REGENERATION_COMPRESSION_POLICY = compressionPolicy(
+  1090→  OUTLINE_IMPACT_REGENERATION_CONTEXT_SOURCE_KEYS,
+  1091→)
+  1092→const OUTLINE_DETAIL_COMPRESSION_POLICY = compressionPolicy(['ragSelection'])
+  1093→const PROSE_COMPRESSION_POLICY = compressionPolicy(['ragSelection'])
+  1094→
+  1095→const PROSE_CONTEXT_GATEWAY_POLICY = {
+  1096→  version: 1 as const,
+  1097→  rollout: 'required' as const,
+  1098→  requiredWriteTargets: ['chapters.content', 'chapters.wordCount'],
+  1099→  providerSourceKeys: ['ragSelection'],
+  1100→  allowedResourceKinds: [
+  1101→    'world', 'worldview-field', 'story-core-field', 'character',
+  1102→    'character-relation', 'story-arc', 'storyline-progress', 'outline-node',
+  1103→    'detailed-outline', 'chapter', 'foreshadow', 'location', 'codex-entry',
+  1104→    'fact', 'reference', 'narrative-blueprint',
+  1105→  ],
+  1106→  allowedDepths: ['index', 'summary', 'focused', 'full', 'original'],
+  1107→  maxReadCalls: 8,
+  1108→  maxRetrievedTokens: 48_000,
+  1109→  maxPlanningSteps: 6,
+  1110→  maxPlanningModelTokens: 24_000,
+  1111→  allowOriginalRead: true,
+  1112→  additionalReadToolNames: [
+  1113→    'list_context_catalog', 'search_context', 'read_context_resource', 'read_original_evidence',
+  1114→  ],
+  1115→} as const
+  1116→const PROSE_EMOTION_BEAT_COMPRESSION_POLICY = compressionPolicy([
+  1117→  'detailedOutline',
+  1118→  'worldview',
+  1119→  'storyCore',
+  1120→  'characters',
+  1121→])
+  1122→const PROSE_ORGANIZATION_COMPRESSION_POLICY = compressionPolicy([
+  1123→  'chapterOutline',
+  1124→  'detailedOutline',
+  1125→  'characters',
+  1126→  'currentFacts',
+  1127→  'retrievedPassages',
+  1128→])
+  1129→const PROSE_MEMORY_COMPRESSION_POLICY = compressionPolicy([
+  1130→  'chapterOutline',
+  1131→  'detailedOutline',
+  1132→  'chapterContinuityHandoff',
+  1133→  'previousPlanReconciliation',
+  1134→])
+  1135→const PROSE_CONSISTENCY_COMPRESSION_POLICY = compressionPolicy(['chapterContent'])
+  1136→const INTERACTION_RUNTIME_INPUT_POLICY: AgentSkillInputPolicyV1 = {
+  1137→  sourceKeys: ['interactionRuntime'],
+  1138→  states: {
+  1139→    empty: { handling: 'require-upstream', instruction: '缺少角色可见运行时上下文时停止，不得臆造场景、知识或记忆。' },
+  1140→    partial: { handling: 'require-upstream', instruction: '角色运行时上下文不完整时停止，等待重新装配。' },
+  1141→    complete: { handling: 'grounded-transform', instruction: '只能依据该角色可见的运行时上下文生成候选，不得读取其他角色私有视角。' },
+  1142→  },
+  1143→}
+  1144→const INTERACTION_RUNTIME_COMPRESSION_POLICY = compressionPolicy(['interactionRuntime'])
+  1145→const AI_TOWN_RUNTIME_INPUT_POLICY: AgentSkillInputPolicyV1 = {
+  1146→  sourceKeys: ['aiTownRuntime'],
+  1147→  states: {
+  1148→    empty: { handling: 'require-upstream', instruction: '缺少后日谈小镇居民可见上下文时停止，不得臆造日程、知识、关系或原作事实。' },
+  1149→    partial: { handling: 'require-upstream', instruction: '后日谈小镇运行时上下文不完整时停止，等待重新装配。' },
+  1150→    complete: { handling: 'grounded-transform', instruction: '只能依据该居民可见的小镇状态生成候选；保持角色自主性，不得泄露其他居民私密事实。' },
+  1151→  },
+  1152→}
+  1153→const AI_TOWN_RUNTIME_COMPRESSION_POLICY = compressionPolicy(['aiTownRuntime'])
+  1154→const AI_TOWN_DIRECTOR_RUNTIME_INPUT_POLICY: AgentSkillInputPolicyV1 = {
+  1155→  sourceKeys: ['aiTownDirectorRuntime'],
+  1156→  states: {
+  1157→    empty: { handling: 'require-upstream', instruction: '缺少 AI 小镇导演公开运行上下文时停止，不得臆造事件或重大变化。' },
+  1158→    partial: { handling: 'require-upstream', instruction: '小镇导演运行上下文不完整时停止，等待重新装配。' },
+  1159→    complete: { handling: 'grounded-transform', instruction: '只能选择当前事件闭集中的可触发 seed，或形成需作者确认的重大变化候选。' },
+  1160→  },
+  1161→}
+  1162→const AI_TOWN_DIRECTOR_RUNTIME_COMPRESSION_POLICY = compressionPolicy(['aiTownDirectorRuntime'])
+  1163→const ADVENTURE_RUNTIME_INPUT_POLICY: AgentSkillInputPolicyV1 = {
+  1164→  sourceKeys: ['adventureRuntime'],
+  1165→  states: {
+  1166→    empty: { handling: 'require-upstream', instruction: '缺少文字冒险运行时上下文时停止，不得臆造行动或结果。' },
+  1167→    partial: { handling: 'require-upstream', instruction: '文字冒险运行时上下文不完整时停止，等待重新装配。' },
+  1168→    complete: { handling: 'grounded-transform', instruction: '自由输入只能映射到登记的当前可执行行动；结果叙述只能改写已提交事件证据。' },
+  1169→  },
+  1170→}
+  1171→const ADVENTURE_RUNTIME_COMPRESSION_POLICY = compressionPolicy(['adventureRuntime'])
+  1172→const OPEN_WORLD_EVOLUTION_RUNTIME_INPUT_POLICY: AgentSkillInputPolicyV1 = {
+  1173→  sourceKeys: ['textOpenWorldEvolutionRuntime'],
+  1174→  states: {
+  1175→    empty: { handling: 'require-upstream', instruction: '缺少文字开放世界内部状态演化上下文时停止，不得臆造局势、行动或结果。' },
+  1176→    partial: { handling: 'require-upstream', instruction: '文字开放世界内部状态演化上下文不完整时停止，等待重新装配。' },
+  1177→    complete: { handling: 'grounded-transform', instruction: '只能依据玩家可见状态与正式事件证据生成表现候选，不得改写确定性结算。' },
+  1178→  },
+  1179→}
+  1180→const OPEN_WORLD_EVOLUTION_RUNTIME_COMPRESSION_POLICY = compressionPolicy(['textOpenWorldEvolutionRuntime'])
+  1181→const OPEN_WORLD_RUNTIME_INPUT_POLICY: AgentSkillInputPolicyV1 = {
+  1182→  sourceKeys: ['openWorldRuntime'],
+  1183→  states: {
+  1184→    empty: { handling: 'require-upstream', instruction: '缺少开放世界玩家视角时停止，不得臆造区域、人物、任务或事件。' },
+  1185→    partial: { handling: 'require-upstream', instruction: '开放世界运行时上下文不完整时停止，等待重新装配。' },
+  1186→    complete: { handling: 'grounded-transform', instruction: '只能润色已公开任务或叙述正式事件证据，不得改变确定性世界状态。' },
+  1187→  },
+  1188→}
+  1189→const OPEN_WORLD_RUNTIME_COMPRESSION_POLICY = compressionPolicy(['openWorldRuntime'])
+  1190→const TTRPG_GM_RUNTIME_INPUT_POLICY: AgentSkillInputPolicyV1 = {
+  1191→  sourceKeys: ['ttrpgRuntime'],
+  1192→  states: {
+  1193→    empty: { handling: 'require-upstream', instruction: '缺少正式 TTRPG 主持人运行视角时停止，不得臆造场景、裁定或线索。' },
+  1194→    partial: { handling: 'require-upstream', instruction: 'TTRPG 主持人运行视角不完整时停止，等待重新装配。' },
+  1195→    complete: { handling: 'grounded-transform', instruction: '只能叙述已完成的正式 RulePack 行动，或为当前 GM 控制 NPC 从 availableActions 提出闭集行动意图；不得指定骰点、结果、资源变化、线索权限或场景事实。' },
+  1196→  },
+  1197→}
+  1198→const TTRPG_PLAYER_RUNTIME_INPUT_POLICY: AgentSkillInputPolicyV1 = {
+  1199→  sourceKeys: ['ttrpgPlayerRuntime'],
+  1200→  states: {
+  1201→    empty: { handling: 'require-upstream', instruction: '缺少单角色 TTRPG 玩家视角时停止，不得从主持上下文或其他角色视角补全。' },
+  1202→    partial: { handling: 'require-upstream', instruction: 'TTRPG 玩家视角不完整时停止，等待按同一角色重新装配。' },
+  1203→    complete: { handling: 'grounded-transform', instruction: '只能从 availableActions 与玩家可见目标提出行动意图；不得生成骰点、结果、资源变化、线索或场景推进。' },
+  1204→  },
+  1205→}
+  1206→const TTRPG_PLAYER_RUNTIME_COMPRESSION_POLICY = compressionPolicy(['ttrpgPlayerRuntime'])
+  1207→const PROSE_STYLE_LEARNING_INPUT_POLICY = {
+  1208→  sourceKeys: ['styleLearningBaseline'],
+  1209→  states: {
+  1210→    empty: {
+  1211→      handling: 'require-author-input',
+  1212→      instruction: '缺少合格章节或作者保存的改稿对照时停止学习，不得凭空生成文风画像。',
+  1213→    },
+  1214→    partial: {
+  1215→      handling: 'grounded-transform',
+  1216→      instruction: '只依据登记的有限章节样本或改稿对照提炼；证据不足的维度必须明确标注。',
+  1217→    },
+  1218→    complete: {
+  1219→      handling: 'grounded-transform',
+  1220→      instruction: '综合登记的章节样本、改稿对照与校准反馈，提炼具体可执行且不挪用剧情实体的文风画像。',
+  1221→    },
+  1222→  },
+  1223→} as const satisfies AgentSkillInputPolicyV1
+  1224→const PROSE_STYLE_LEARNING_COMPRESSION_POLICY = compressionPolicy(['styleLearningBaseline'])
+  1225→
+  1226→function productProductionInputPolicy(sourceKeys: readonly string[]): AgentSkillInputPolicyV1 {
+  1227→  return {
+  1228→    sourceKeys,
+  1229→    states: {
+  1230→      empty: { handling: 'require-upstream', instruction: '缺少登记的生产来源时停止，不得从组件状态或其他 Work 猜测。' },
+  1231→      partial: { handling: 'require-upstream', instruction: '生产依赖不完整时停止并报告缺失 key，不得扩大读取范围。' },
+  1232→      complete: { handling: 'grounded-transform', instruction: '只能基于已授权 Brief 和显式 Artifact 依赖生成候选；正式发布仍需整包 adoption。' },
+  1233→    },
+  1234→  }
+  1235→}
+  1236→
+  1237→export const AGENT_SKILLS = [
+  1238→  {
+  1239→    version: 1,
+  1240→    id: 'world-origin.review',
+  1241→    agentId: 'world-origin',
+  1242→    defaultForAgent: false,
+  1243→    label: '世界来源证据型语义终验',
+  1244→    owner: 'world-foundation-agent',
+  1245→    promptVersion: 'world-origin-semantic-review-v1',
+  1246→    executionMode: 'review',
+  1247→    contextTaskKind: 'agent-world-origin',
+  1248→    readToolNames: [],
+  1249→    contextSourceKeys: ['workStatus', 'worldview', 'storyCore', 'powerSystem', 'codex', 'characters', 'storyArcs'],
+  1250→    optionalContextSourceKeys: [],
+  1251→    inputPolicy: WORLD_FOUNDATION_INPUT_POLICY,
+  1252→    contextCompression: WORLD_COMPRESSION_POLICY,
+  1253→    maxOutputTokens: 3_000,
+  1254→    writeTargets: [],
+  1255→    lastVerifiedAt: '2026-08-09',
+  1256→    regressionTests: ['R-HARNESS27-master-candidate-semantic-review'],
+  1257→  },
+  1258→  {
+  1259→    version: 1,
+  1260→    id: 'world-origin.worldview-field',
+  1261→    agentId: 'world-origin',
+  1262→    defaultForAgent: true,
+  1263→    label: '世界基座单字段生成',
+  1264→    owner: 'world-foundation-agent',
+  1265→    promptVersion: 'worldview-field-copilot-v1',
+  1266→    executionMode: 'worldview-field',
+  1267→    contextTaskKind: 'agent-world-origin',
+  1268→    readToolNames: [],
+  1269→    contextSourceKeys: WORLDVIEW_FIELD_CONTEXT_SOURCE_KEYS,
+  1270→    optionalContextSourceKeys: [],
+  1271→    inputPolicy: WORLDVIEW_FIELD_INPUT_POLICY,
+  1272→    contextCompression: WORLDVIEW_FIELD_COMPRESSION_POLICY,
+  1273→    contextGateway: {
+  1274→      version: 1,
+  1275→      rollout: 'required',
+  1276→      requiredWriteTargets: WORLDVIEW_GENERATABLE_FIELD_SPECS.map(spec => `worldviews.${spec.field}`),
+  1277→      providerSourceKeys: ['ragSelection'],
+  1278→      allowedResourceKinds: [
+  1279→        'world', 'worldview-field', 'story-core-field', 'character',
+  1280→        'character-relation', 'story-arc', 'storyline-progress', 'outline-node',
+  1281→        'detailed-outline', 'chapter', 'foreshadow', 'location', 'codex-entry',
+  1282→        'world-link', 'fact', 'reference', 'narrative-blueprint',
+  1283→      ],
+  1284→      allowedDepths: ['index', 'summary', 'focused', 'full', 'original'],
+  1285→      maxReadCalls: 4,
+  1286→      maxRetrievedTokens: 24_000,
+  1287→      maxPlanningSteps: 5,
+  1288→      maxPlanningModelTokens: 24_000,
+  1289→      allowOriginalRead: true,
+  1290→      additionalReadToolNames: [
+  1291→        'list_context_catalog', 'search_context', 'read_context_resource', 'read_original_evidence',
+  1292→      ],
+  1293→    },
+  1294→    maxOutputTokens: 6_000,
+  1295→    writeTargets: [{
+  1296→      table: 'worldviews',
+  1297→      fields: WORLDVIEW_GENERATABLE_FIELD_SPECS.map(spec => spec.field),
+  1298→    }],
+  1299→    lastVerifiedAt: '2026-08-23',
+  1300→    regressionTests: [
+  1301→      'R-WE1-worldview-generatable-contract',
+  1302→      'R-HARNESS32-worldview-field-agent',
+  1303→      'R-HARNESS32-worldview-panels-ui',
+  1304→      'R-RACE1-races-gateway-canary',
+  1305→      'R-RACE2-races-mode-length-contract',
+  1306→      'R-RACE3-worldview-candidate-review',
+  1307→      'R-RACE4-races-fault-matrix',
+  1308→    ],
+  1309→  },
+  1310→  {
+  1311→    version: 1,
+  1312→    id: 'world-origin.world-link-context',
+  1313→    agentId: 'world-origin',
+  1314→    defaultForAgent: false,
+  1315→    label: '世界通道上下文',
+  1316→    owner: 'world-foundation-agent',
+  1317→    promptVersion: 'world-link-context-v1',
+  1318→    executionMode: 'world-link-context',
+  1319→    contextTaskKind: 'agent-world-origin',
+  1320→    readToolNames: [],
+  1321→    contextSourceKeys: WORLD_SUGGEST_CONTEXT_SOURCE_KEYS,
+  1322→    optionalContextSourceKeys: [],
+  1323→    inputPolicy: {
+  1324→      sourceKeys: WORLD_SUGGEST_CONTEXT_SOURCE_KEYS,
+  1325→      states: {
+  1326→        empty: { handling: 'create-from-request', instruction: '目标世界和通道是强制资源；缺失时停止，不得猜测相邻世界。' },
+  1327→        partial: { handling: 'reference-and-create', instruction: '只沿指定通道展开一个相邻世界，并保留方向与进出约束。' },
+  1328→        complete: { handling: 'grounded-transform', instruction: '严格依据目标世界和指定通道资源工作，不得跨第二跳读取。' },
+  1329→      },
+  1330→    },
+  1331→    contextCompression: WORLD_SUGGEST_COMPRESSION_POLICY,
+  1332→    contextGateway: {
+  1333→      version: 1,
+  1334→      rollout: 'required',
+  1335→      requiredWriteTargets: [],
+  1336→      providerSourceKeys: ['ragSelection'],
+  1337→      allowedResourceKinds: [
+  1338→        'world', 'world-link', 'worldview-field', 'story-core-field', 'character',
+  1339→        'character-relation', 'story-arc', 'outline-node', 'chapter', 'fact', 'codex-entry',
+  1340→      ],
+  1341→      allowedDepths: ['index', 'summary', 'focused', 'full', 'original'],
+  1342→      maxReadCalls: 3,
+  1343→      maxRetrievedTokens: 16_000,
+  1344→      maxPlanningSteps: 3,
+  1345→      maxPlanningModelTokens: 12_000,
+  1346→      allowOriginalRead: true,
+  1347→      additionalReadToolNames: [
+  1348→        'list_context_catalog', 'search_context', 'read_context_resource', 'read_original_evidence',
+  1349→      ],
+  1350→    },
+  1351→    maxOutputTokens: 2_000,
+  1352→    writeTargets: [],
+  1353→    lastVerifiedAt: '2026-08-23',
+  1354→    regressionTests: ['R-MW1-world-link-governance'],
+  1355→  },
+  1356→  {
+  1357→    version: 1,
+  1358→    id: 'world-origin.world-suggest',
+  1359→    agentId: 'world-origin',
+  1360→    defaultForAgent: false,
+  1361→    label: '多世界建议',
+  1362→    owner: 'world-foundation-agent',
+  1363→    promptVersion: 'world-suggest-v1',
+  1364→    executionMode: 'world-suggest',
+  1365→    contextTaskKind: 'agent-world-origin',
+  1366→    readToolNames: [],
+  1367→    contextSourceKeys: WORLD_SUGGEST_CONTEXT_SOURCE_KEYS,
+  1368→    optionalContextSourceKeys: [],
+  1369→    inputPolicy: {
+  1370→      sourceKeys: WORLD_SUGGEST_CONTEXT_SOURCE_KEYS,
+  1371→      states: {
+  1372→        empty: { handling: 'create-from-request', instruction: '只依据作者本轮概念生成新世界候选，不得声称已有不存在的世界或故事核心。' },
+  1373→        partial: { handling: 'reference-and-create', instruction: '锁定已有世界目录或故事核心，只建议尚不存在且有差异化的新世界。' },
+  1374→        complete: { handling: 'grounded-transform', instruction: '严格依据当前世界目录和故事核心建议递进世界，不得改写已有世界。' },
+  1375→      },
+  1376→    },
+  1377→    contextCompression: WORLD_SUGGEST_COMPRESSION_POLICY,
+  1378→    maxOutputTokens: 4_000,
+  1379→    writeTargets: [{
+  1380→      table: 'worldGroups',
+  1381→      fields: ['name', 'type', 'description', 'icon', 'order', 'entryCondition', 'powerRestriction', 'plannedChapterCount'],
+  1382→    }],
+  1383→    lastVerifiedAt: '2026-08-14',
+  1384→    regressionTests: ['R-HARNESS68-world-suggest-durable'],
+  1385→  },
+  1386→  {
+  1387→    version: 1,
+  1388→    id: 'world-origin.worldview-expand',
+  1389→    agentId: 'world-origin',
+  1390→    defaultForAgent: false,
+  1391→    label: '世界组六字段扩写',
+  1392→    owner: 'world-foundation-agent',
+  1393→    promptVersion: 'worldview-expand-v2',
+  1394→    executionMode: 'worldview-expand',
+  1395→    contextTaskKind: 'agent-world-origin',
+  1396→    readToolNames: [],
+  1397→    contextSourceKeys: WORLDVIEW_EXPAND_CONTEXT_SOURCE_KEYS,
+  1398→    optionalContextSourceKeys: [],
+  1399→    inputPolicy: {
+  1400→      sourceKeys: WORLDVIEW_EXPAND_CONTEXT_SOURCE_KEYS,
+  1401→      states: {
+  1402→        empty: { handling: 'create-from-request', instruction: '只依据作者已保存的世界草稿创建六字段候选，不得声称引用了不存在的设定。' },
+  1403→        partial: { handling: 'reference-and-create', instruction: '锁定已有世界观和故事核心，只补足本次六字段候选并保持其它世界差异化。' },
+  1404→        complete: { handling: 'grounded-transform', instruction: '严格依据当前世界正式设定扩写六字段，禁止覆盖非目标字段或其它世界。' },
+  1405→      },
+  1406→    },
+  1407→    contextCompression: WORLDVIEW_EXPAND_COMPRESSION_POLICY,
+  1408→    maxOutputTokens: 8_000,
+  1409→    writeTargets: [{
+  1410→      table: 'worldviews',
+  1411→      fields: ['worldOrigin', 'powerHierarchy', 'continentLayout', 'climateByRegion', 'races', 'factionLayout'],
+  1412→    }],
+  1413→    lastVerifiedAt: '2026-08-14',
+  1414→    regressionTests: ['R-HARNESS67-worldview-expand-durable'],
+  1415→  },
+  1416→  {
+  1417→    version: 1,
+  1418→    id: 'world-origin.constitution-extract',
+  1419→    agentId: 'world-origin',
+  1420→    defaultForAgent: false,
+  1421→    label: '世界宪法设定断言抽取',
+  1422→    owner: 'world-foundation-agent',
+  1423→    promptVersion: 'constitution-extract-v1',
+  1424→    executionMode: 'constitution-extract',
+  1425→    contextTaskKind: 'agent-world-origin',
+  1426→    readToolNames: [],
+  1427→    contextSourceKeys: CONSTITUTION_EXTRACT_CONTEXT_SOURCE_KEYS,
+  1428→    optionalContextSourceKeys: [],
+  1429→    inputPolicy: {
+  1430→      sourceKeys: CONSTITUTION_EXTRACT_CONTEXT_SOURCE_KEYS,
+  1431→      states: {
+  1432→        empty: { handling: 'require-upstream', instruction: '没有已登记非空设定源时不调用模型，不创造断言。' },
+  1433→        partial: { handling: 'grounded-transform', instruction: '只从当前登记源、主题、主体和逐字证据闭集抽取候选。' },
+  1434→        complete: { handling: 'grounded-transform', instruction: '只从完整登记闭集抽取候选，不确认或取代 Canon。' },
+  1435→      },
+  1436→    },
+  1437→    contextCompression: CONSTITUTION_EXTRACT_COMPRESSION_POLICY,
+  1438→    maxOutputTokens: 8_000,
+  1439→    writeTargets: [{ table: 'temporalFacts', fields: [], adoptionExtension: 'fact-ledger' }],
+  1440→    lastVerifiedAt: '2026-08-14',
+  1441→    regressionTests: ['R-HARNESS69-constitution-extraction-durable'],
+  1442→  },
+  1443→  {
+  1444→    version: 1,
+  1445→    id: 'world-origin.codex-extract',
+  1446→    agentId: 'world-origin',
+  1447→    defaultForAgent: false,
+  1448→    label: 'Codex 内容分块词条抽取',
+  1449→    owner: 'world-foundation-agent',
+  1450→    promptVersion: 'codex-extract-v1',
+  1451→    executionMode: 'codex-extract',
+  1452→    contextTaskKind: 'agent-world-origin',
+  1453→    readToolNames: [],
+  1454→    contextSourceKeys: CODEX_EXTRACT_CONTEXT_SOURCE_KEYS,
+  1455→    optionalContextSourceKeys: [],
+  1456→    inputPolicy: {
+  1457→      sourceKeys: CODEX_EXTRACT_CONTEXT_SOURCE_KEYS,
+  1458→      states: {
+  1459→        empty: { handling: 'require-upstream', instruction: '缺少作者来源或登记分类基线时不调用模型。' },
+  1460→        partial: { handling: 'require-upstream', instruction: '必须同时冻结作者来源、目标分类 schema 和同类既有词条。' },
+  1461→        complete: { handling: 'grounded-transform', instruction: '只按当前分类字段闭集拆分可确认词条，不写入未选候选。' },
+  1462→      },
+  1463→    },
+  1464→    contextCompression: CODEX_EXTRACT_COMPRESSION_POLICY,
+  1465→    contextGateway: {
+  1466→      version: 1,
+  1467→      rollout: 'required',
+  1468→      requiredWriteTargets: CODEX_CANDIDATE_WRITE_FIELDS.map(field => `codexEntries.${field}`),
+  1469→      providerSourceKeys: ['ragSelection'],
+  1470→      allowedResourceKinds: ['codex-entry'],
+  1471→      allowedDepths: ['index', 'summary', 'focused', 'full', 'original'],
+  1472→      maxReadCalls: 2,
+  1473→      maxRetrievedTokens: 20_000,
+  1474→      maxPlanningSteps: 2,
+  1475→      maxPlanningModelTokens: 8_000,
+  1476→      allowOriginalRead: true,
+  1477→      additionalReadToolNames: [
+  1478→        'list_context_catalog', 'search_context', 'read_context_resource', 'read_original_evidence',
+  1479→      ],
+  1480→    },
+  1481→    maxOutputTokens: 4_000,
+  1482→    writeTargets: [{
+  1483→      table: 'codexEntries',
+  1484→      fields: [...CODEX_CANDIDATE_WRITE_FIELDS],
+  1485→    }],
+  1486→    lastVerifiedAt: '2026-08-24',
+  1487→    regressionTests: [
+  1488→      'R-HARNESS70-codex-extraction-durable',
+  1489→      'R-RACE5-codex-extraction-enrichment',
+  1490→      'R-CODEX1-gateway-provenance',
+  1491→    ],
+  1492→  },
+  1493→  {
+  1494→    version: 1,
+  1495→    id: 'world-origin.codex-enrich',
+  1496→    agentId: 'world-origin',
+  1497→    defaultForAgent: false,
+  1498→    label: 'Codex AI 新建词条建议',
+  1499→    owner: 'world-foundation-agent',
+  1500→    promptVersion: 'codex-enrich-v1',
+  1501→    executionMode: 'codex-enrich',
+  1502→    contextTaskKind: 'agent-world-origin',
+  1503→    readToolNames: [],
+  1504→    contextSourceKeys: CODEX_ENRICH_CONTEXT_SOURCE_KEYS,
+  1505→    optionalContextSourceKeys: [],
+  1506→    inputPolicy: {
+  1507→      sourceKeys: CODEX_ENRICH_CONTEXT_SOURCE_KEYS,
+  1508→      states: {
+  1509→        empty: { handling: 'require-upstream', instruction: '缺少世界 Canon 或分类基线时不创建建议。' },
+  1510→        partial: { handling: 'reference-and-create', instruction: '在已登记世界 Canon 范围内生成明确标记的 AI 新建建议。' },
+  1511→        complete: { handling: 'reference-and-create', instruction: '结合完整上下文创建新词条建议，不自动改写任何 Canon。' },
+  1512→      },
+  1513→    },
+  1514→    contextCompression: CODEX_ENRICH_COMPRESSION_POLICY,
+  1515→    contextGateway: {
+  1516→      version: 1,
+  1517→      rollout: 'required',
+  1518→      requiredWriteTargets: CODEX_CANDIDATE_WRITE_FIELDS.map(field => `codexEntries.${field}`),
+  1519→      providerSourceKeys: ['ragSelection'],
+  1520→      allowedResourceKinds: [
+  1521→        'world', 'worldview-field', 'story-core-field', 'character', 'character-relation',
+  1522→        'story-arc', 'storyline-progress', 'outline-node', 'detailed-outline', 'chapter',
+  1523→        'foreshadow', 'location', 'codex-entry', 'fact', 'reference', 'narrative-blueprint',
+  1524→      ],
+  1525→      allowedDepths: ['index', 'summary', 'focused', 'full', 'original'],
+  1526→      maxReadCalls: 4,
+  1527→      maxRetrievedTokens: 32_000,
+  1528→      maxPlanningSteps: 5,
+  1529→      maxPlanningModelTokens: 24_000,
+  1530→      allowOriginalRead: true,
+  1531→      additionalReadToolNames: [
+  1532→        'list_context_catalog', 'search_context', 'read_context_resource', 'read_original_evidence',
+  1533→      ],
+  1534→    },
+  1535→    maxOutputTokens: 4_000,
+  1536→    writeTargets: [{
+  1537→      table: 'codexEntries',
+  1538→      fields: [...CODEX_CANDIDATE_WRITE_FIELDS],
+  1539→    }],
+  1540→    lastVerifiedAt: '2026-08-24',
+  1541→    regressionTests: ['R-RACE5-codex-extraction-enrichment', 'R-CODEX1-gateway-provenance'],
+  1542→  },
+  1543→  {
+  1544→    version: 1,
+  1545→    id: 'world-origin.story-core',
+  1546→    agentId: 'world-origin',
+  1547→    defaultForAgent: false,
+  1548→    label: '故事核心单字段生成',
+  1549→    owner: 'world-foundation-agent',
+  1550→    promptVersion: 'story-core-copilot-v1',
+  1551→    executionMode: 'story-core',
+  1552→    contextTaskKind: 'agent-world-origin',
+  1553→    readToolNames: [],
+  1554→    contextSourceKeys: STORY_CORE_CONTEXT_SOURCE_KEYS,
+  1555→    optionalContextSourceKeys: [],
+  1556→    inputPolicy: STORY_CORE_INPUT_POLICY,
+  1557→    contextCompression: STORY_CORE_COMPRESSION_POLICY,
+  1558→    contextGateway: {
+  1559→      version: 1,
+  1560→      rollout: 'required',
+  1561→      requiredWriteTargets: STORY_CORE_GENERATABLE_FIELD_SPECS.map(spec => `storyCores.${spec.field}`),
+  1562→      providerSourceKeys: ['ragSelection'],
+  1563→      allowedResourceKinds: [
+  1564→        'world', 'worldview-field', 'story-core-field', 'character',
+  1565→        'character-relation', 'story-arc', 'storyline-progress', 'outline-node',
+  1566→        'detailed-outline', 'chapter', 'foreshadow', 'location', 'codex-entry',
+  1567→        'world-link', 'fact', 'reference', 'narrative-blueprint',
+  1568→      ],
+  1569→      allowedDepths: ['index', 'summary', 'focused', 'full', 'original'],
+  1570→      maxReadCalls: 4,
+  1571→      maxRetrievedTokens: 24_000,
+  1572→      maxPlanningSteps: 5,
+  1573→      maxPlanningModelTokens: 24_000,
+  1574→      allowOriginalRead: true,
+  1575→      additionalReadToolNames: [
+  1576→        'list_context_catalog', 'search_context', 'read_context_resource', 'read_original_evidence',
+  1577→      ],
+  1578→    },
+  1579→    maxOutputTokens: 6_000,
+  1580→    writeTargets: [{
+  1581→      table: 'storyCores',
+  1582→      fields: STORY_CORE_GENERATABLE_FIELD_SPECS.map(spec => spec.field),
+  1583→    }],
+  1584→    lastVerifiedAt: '2026-08-23',
+  1585→    regressionTests: [
+  1586→      'R-HARNESS31-story-core-agent',
+  1587→      'R-HARNESS31-story-core-panel-ui',
+  1588→    ],
+  1589→  },
+  1590→  {
+  1591→    version: 1,
+  1592→    id: 'world-origin.creative-rules',
+  1593→    agentId: 'world-origin',
+  1594→    defaultForAgent: false,
+  1595→    label: '创作规则单字段建议',
+  1596→    owner: 'world-foundation-agent',
+  1597→    promptVersion: 'creative-rules-copilot-v1',
+  1598→    executionMode: 'creative-rules',
+  1599→    contextTaskKind: 'agent-world-origin',
+  1600→    readToolNames: [],
+  1601→    contextSourceKeys: CREATIVE_RULES_CONTEXT_SOURCE_KEYS,
+  1602→    optionalContextSourceKeys: [],
+  1603→    inputPolicy: CREATIVE_RULES_INPUT_POLICY,
+  1604→    contextCompression: CREATIVE_RULES_COMPRESSION_POLICY,
+  1605→    maxOutputTokens: 4_000,
+  1606→    writeTargets: [{
+  1607→      table: 'creativeRules',
+  1608→      fields: ['writingStyle', 'atmosphere', 'specialRequirements'],
+  1609→    }],
+  1610→    lastVerifiedAt: '2026-08-10',
+  1611→    regressionTests: [
+  1612→      'R-HARNESS39-creative-rules-agent',
+  1613→      'R-HARNESS39-creative-rules-panel-ui',
+  1614→    ],
+  1615→  },
+  1616→  {
+  1617→    version: 1,
+  1618→    id: 'character.create',
+  1619→    agentId: 'character',
+  1620→    defaultForAgent: true,
+  1621→    label: '角色创建',
+  1622→    owner: 'character-agent',
+  1623→    promptVersion: 'character-copilot-v1',
+  1624→    executionMode: 'create',
+  1625→    contextTaskKind: 'agent-character',
+  1626→    readToolNames: [],
+  1627→    contextSourceKeys: [...CHARACTER_INPUT_POLICY.sourceKeys],
+  1628→    optionalContextSourceKeys: [],
+  1629→    inputPolicy: CHARACTER_INPUT_POLICY,
+  1630→    contextCompression: CHARACTER_COMPRESSION_POLICY,
+  1631→    contextGateway: {
+  1632→      version: 1,
+  1633→      rollout: 'required',
+  1634→      requiredWriteTargets: ['characters.name'],
+  1635→      providerSourceKeys: ['ragSelection'],
+  1636→      allowedResourceKinds: [
+  1637→        'world', 'worldview-field', 'story-core-field', 'character',
+  1638→        'character-relation', 'story-arc', 'storyline-progress', 'outline-node',
+  1639→        'detailed-outline', 'chapter', 'foreshadow', 'location', 'codex-entry',
+  1640→        'world-link', 'fact', 'reference', 'narrative-blueprint',
+  1641→      ],
+  1642→      allowedDepths: ['index', 'summary', 'focused', 'full', 'original'],
+  1643→      maxReadCalls: 5,
+  1644→      maxRetrievedTokens: 32_000,
+  1645→      maxPlanningSteps: 6,
+  1646→      maxPlanningModelTokens: 32_000,
+  1647→      allowOriginalRead: true,
+  1648→      additionalReadToolNames: [
+  1649→        'list_context_catalog', 'search_context', 'read_context_resource', 'read_original_evidence',
+  1650→      ],
+  1651→    },
+  1652→    maxOutputTokens: 6_000,
+  1653→    writeTargets: [{
+  1654→      table: 'characters',
+  1655→      fields: [
+  1656→        'name',
+  1657→        'roleWeight',
+  1658→        'moralAxis',
+  1659→        'orderAxis',
+  1660→        'relationships',
+  1661→        ...CHARACTER_DIMENSIONS.map(dimension => dimension.key),
+  1662→      ],
+  1663→    }],
+  1664→    lastVerifiedAt: '2026-08-09',
+  1665→    regressionTests: ['R-AGENT1-chat-copilot-character', 'R-HARNESS33-character-panel-ui', 'R-HARNESS2-master-terminal-verifier', 'R-HARNESS16-semantic-context-compression', 'R-HARNESS18-execution-version-freshness'],
+  1666→  },
+  1667→  {
+  1668→    version: 1,
+  1669→    id: 'world-origin.locations',
+  1670→    agentId: 'world-origin',
+  1671→    defaultForAgent: false,
+  1672→    label: '已写正文重要地点提取',
+  1673→    owner: 'world-foundation-agent',
+  1674→    promptVersion: 'location-extract-v1',
+  1675→    executionMode: 'locations',
+  1676→    contextTaskKind: 'agent-world-origin',
+  1677→    readToolNames: [],
+  1678→    contextSourceKeys: ['chapterContent', 'locations'],
+  1679→    optionalContextSourceKeys: [],
+  1680→    inputPolicy: WORLD_LOCATION_EXTRACTION_INPUT_POLICY,
+  1681→    contextCompression: WORLD_LOCATION_EXTRACTION_COMPRESSION_POLICY,
+  1682→    maxOutputTokens: 4_000,
+  1683→    writeTargets: [{
+  1684→      table: 'importantLocations',
+  1685→      fields: ['name', 'tags', 'description', 'significance', 'parentId', 'sortOrder'],
+  1686→    }],
+  1687→    lastVerifiedAt: '2026-08-13',
+  1688→    regressionTests: ['R-HARNESS62-location-extraction-durable'],
+  1689→  },
+  1690→  {
+  1691→    version: 1,
+  1692→    id: 'world-origin.map-config',
+  1693→    agentId: 'world-origin',
+  1694→    defaultForAgent: false,
+  1695→    label: '世界地图配置生成',
+  1696→    owner: 'world-foundation-agent',
+  1697→    promptVersion: 'world-map-config-v1',
+  1698→    executionMode: 'map-config',
+  1699→    contextTaskKind: 'agent-world-origin',
+  1700→    readToolNames: [],
+  1701→    contextSourceKeys: WORLD_MAP_CONTEXT_SOURCE_KEYS,
+  1702→    optionalContextSourceKeys: [],
+  1703→    inputPolicy: WORLD_MAP_INPUT_POLICY,
+  1704→    contextCompression: WORLD_MAP_COMPRESSION_POLICY,
+  1705→    maxOutputTokens: 6_000,
+  1706→    writeTargets: [{ table: 'worldNodes', fields: ['mapConfigJSON'] }],
+  1707→    lastVerifiedAt: '2026-08-14',
+  1708→    regressionTests: ['R-HARNESS66-world-map-durable'],
+  1709→  },
+  1710→  {
+  1711→    version: 1,
+  1712→    id: 'world-origin.history-consult',
+  1713→    agentId: 'world-origin',
+  1714→    defaultForAgent: false,
+  1715→    label: '历史条目考据',
+  1716→    owner: 'world-foundation-agent',
+  1717→    promptVersion: 'history-consult-v1',
+  1718→    executionMode: 'history-consult',
+  1719→    contextTaskKind: 'agent-world-origin',
+  1720→    readToolNames: [],
+  1721→    contextSourceKeys: HISTORY_AGENT_CONTEXT_SOURCE_KEYS,
+  1722→    optionalContextSourceKeys: [],
+  1723→    inputPolicy: HISTORY_AGENT_INPUT_POLICY,
+  1724→    contextCompression: HISTORY_AGENT_COMPRESSION_POLICY,
+  1725→    maxOutputTokens: 5_000,
+  1726→    writeTargets: [
+  1727→      { table: 'historicalTimelineEvents', fields: ['aiConsult'] },
+  1728→      { table: 'historicalKeywords', fields: ['aiConsult'] },
+  1729→    ],
+  1730→    lastVerifiedAt: '2026-08-14',
+  1731→    regressionTests: ['R-HARNESS73-history-agent-durable'],
+  1732→  },
+  1733→  {
+  1734→    version: 1,
+  1735→    id: 'world-origin.history-storm',
+  1736→    agentId: 'world-origin',
+  1737→    defaultForAgent: false,
+  1738→    label: '历史条目头脑风暴',
+  1739→    owner: 'world-foundation-agent',
+  1740→    promptVersion: 'history-storm-v1',
+  1741→    executionMode: 'history-storm',
+  1742→    contextTaskKind: 'agent-world-origin',
+  1743→    readToolNames: [],
+  1744→    contextSourceKeys: HISTORY_AGENT_CONTEXT_SOURCE_KEYS,
+  1745→    optionalContextSourceKeys: [],
+  1746→    inputPolicy: HISTORY_AGENT_INPUT_POLICY,
+  1747→    contextCompression: HISTORY_AGENT_COMPRESSION_POLICY,
+  1748→    maxOutputTokens: 5_000,
+  1749→    writeTargets: [
+  1750→      { table: 'historicalTimelineEvents', fields: ['aiBrainstorm'] },
+  1751→      { table: 'historicalKeywords', fields: ['aiBrainstorm'] },
+  1752→    ],
+  1753→    lastVerifiedAt: '2026-08-14',
+  1754→    regressionTests: ['R-HARNESS73-history-agent-durable'],
+  1755→  },
+  1756→  {
+  1757→    version: 1,
+  1758→    id: 'character.supplement',
+  1759→    agentId: 'character',
+  1760→    defaultForAgent: false,
+  1761→    label: '已有角色定向补全',
+  1762→    owner: 'character-agent',
+  1763→    promptVersion: 'character-supplement-copilot-v1',
+  1764→    executionMode: 'supplement',
+  1765→    contextTaskKind: 'agent-character',
+  1766→    readToolNames: [],
+  1767→    contextSourceKeys: CHARACTER_SUPPLEMENT_CONTEXT_SOURCE_KEYS,
+  1768→    optionalContextSourceKeys: CHARACTER_SUPPLEMENT_OPTIONAL_CONTEXT_SOURCE_KEYS,
+  1769→    inputPolicy: CHARACTER_SUPPLEMENT_INPUT_POLICY,
+  1770→    contextCompression: CHARACTER_SUPPLEMENT_COMPRESSION_POLICY,
+  1771→    contextGateway: {
+  1772→      version: 1,
+  1773→      rollout: 'required',
+  1774→      requiredWriteTargets: CHARACTER_DIMENSIONS.map(dimension => `characters.${dimension.key}`),
+  1775→      providerSourceKeys: ['ragSelection'],
+  1776→      allowedResourceKinds: [
+  1777→        'world', 'worldview-field', 'story-core-field', 'character',
+  1778→        'character-relation', 'story-arc', 'storyline-progress', 'outline-node',
+  1779→        'detailed-outline', 'chapter', 'foreshadow', 'location', 'codex-entry',
+  1780→        'world-link', 'fact', 'reference', 'narrative-blueprint',
+  1781→      ],
+  1782→      allowedDepths: ['index', 'summary', 'focused', 'full', 'original'],
+  1783→      maxReadCalls: 5,
+  1784→      maxRetrievedTokens: 48_000,
+  1785→      maxPlanningSteps: 6,
+  1786→      maxPlanningModelTokens: 48_000,
+  1787→      allowOriginalRead: true,
+  1788→      additionalReadToolNames: [
+  1789→        'list_context_catalog', 'search_context', 'read_context_resource', 'read_original_evidence',
+  1790→      ],
+  1791→    },
+  1792→    maxOutputTokens: 8_000,
+  1793→    writeTargets: [{
+  1794→      table: 'characters',
+  1795→      fields: CHARACTER_DIMENSIONS.map(dimension => dimension.key),
+  1796→    }],
+  1797→    lastVerifiedAt: '2026-08-09',
+  1798→    regressionTests: ['R-HARNESS38-character-supplement-agent', 'R-HARNESS38-character-supplement-ui'],
+  1799→  },
+  1800→  {
+  1801→    version: 1,
+  1802→    id: 'character.lifecycle',
+  1803→    agentId: 'character',
+  1804→    defaultForAgent: false,
+  1805→    label: '角色状态演化与退场',
+  1806→    owner: 'character-agent',
+  1807→    promptVersion: 'character-lifecycle-copilot-v1',
+  1808→    executionMode: 'lifecycle',
+  1809→    contextTaskKind: 'agent-character',
+  1810→    readToolNames: [],
+  1811→    contextSourceKeys: CHARACTER_SUPPLEMENT_CONTEXT_SOURCE_KEYS,
+  1812→    optionalContextSourceKeys: CHARACTER_SUPPLEMENT_OPTIONAL_CONTEXT_SOURCE_KEYS,
+  1813→    inputPolicy: CHARACTER_SUPPLEMENT_INPUT_POLICY,
+  1814→    contextCompression: CHARACTER_SUPPLEMENT_COMPRESSION_POLICY,
+  1815→    contextGateway: {
+  1816→      version: 1,
+  1817→      rollout: 'required',
+  1818→      requiredWriteTargets: [
+  1819→        'characters.narrativeStatus', 'characters.statusEvidenceChapterId',
+  1820→        'characters.statusEvidenceStoryArcId', 'characters.statusReason',
+  1821→        'characters.exitChapterId', 'characters.ending', 'characters.activeChapterRange',
+  1822→        'characters.statusProducerContractHash', 'characters.statusProducerCandidateHash',
+  1823→      ],
+  1824→      providerSourceKeys: ['ragSelection'],
+  1825→      allowedResourceKinds: [
+  1826→        'world', 'worldview-field', 'story-core-field', 'character',
+  1827→        'character-relation', 'story-arc', 'storyline-progress', 'outline-node',
+  1828→        'detailed-outline', 'chapter', 'foreshadow', 'location', 'codex-entry',
+  1829→        'world-link', 'fact', 'narrative-blueprint',
+  1830→      ],
+  1831→      allowedDepths: ['index', 'summary', 'focused', 'full', 'original'],
+  1832→      maxReadCalls: 5,
+  1833→      maxRetrievedTokens: 48_000,
+  1834→      maxPlanningSteps: 6,
+  1835→      maxPlanningModelTokens: 48_000,
+  1836→      allowOriginalRead: true,
+  1837→      additionalReadToolNames: [
+  1838→        'list_context_catalog', 'search_context', 'read_context_resource', 'read_original_evidence',
+  1839→      ],
+  1840→    },
+  1841→    maxOutputTokens: 4_000,
+  1842→    writeTargets: [{
+  1843→      table: 'characters',
+  1844→      fields: [
+  1845→        'narrativeStatus', 'statusEvidenceChapterId', 'statusEvidenceStoryArcId',
+  1846→        'statusReason', 'exitChapterId', 'ending', 'activeChapterRange',
+  1847→        'statusProducerContractHash', 'statusProducerCandidateHash',
+  1848→      ],
+  1849→    }],
+  1850→    lastVerifiedAt: '2026-08-23',
+  1851→    regressionTests: ['R-CHAR1-character-gateway-contract', 'R-CHAR1-character-lifecycle-ui'],
+  1852→  },
+  1853→  {
+  1854→    version: 1,
+  1855→    id: 'character.relationships',
+  1856→    agentId: 'character',
+  1857→    defaultForAgent: false,
+  1858→    label: '角色关系证据提取',
+  1859→    owner: 'character-agent',
+  1860→    promptVersion: 'character-relationships-v1',
+  1861→    executionMode: 'relationships',
+  1862→    contextTaskKind: 'agent-character',
+  1863→    readToolNames: [],
+  1864→    contextSourceKeys: CHARACTER_RELATIONSHIP_CONTEXT_SOURCE_KEYS,
+  1865→    optionalContextSourceKeys: [],
+  1866→    inputPolicy: CHARACTER_RELATIONSHIP_INPUT_POLICY,
+  1867→    contextCompression: CHARACTER_RELATIONSHIP_COMPRESSION_POLICY,
+  1868→    maxOutputTokens: 4_000,
+  1869→    writeTargets: [
+  1870→      { table: 'characterRelations', fields: ['fromCharacterId', 'toCharacterId', 'relationType', 'label', 'description', 'isBidirectional'] },
+  1871→      { table: 'characters', fields: ['relationships'] },
+  1872→    ],
+  1873→    lastVerifiedAt: '2026-08-13',
+  1874→    regressionTests: ['R-HARNESS60-character-relationship-durable'],
+  1875→  },
+  1876→  {
+  1877→    version: 1,
+  1878→    id: 'inspiration.reference-summary',
+  1879→    agentId: 'inspiration',
+  1880→    defaultForAgent: false,
+  1881→    label: '参考分析全书总结',
+  1882→    owner: 'inspiration-agent',
+  1883→    promptVersion: 'reference-derived-v1',
+  1884→    executionMode: 'reference-summary',
+  1885→    contextTaskKind: 'agent-inspiration',
+  1886→    readToolNames: [],
+  1887→    contextSourceKeys: REFERENCE_DERIVED_CONTEXT_SOURCE_KEYS,
+  1888→    optionalContextSourceKeys: [],
+  1889→    inputPolicy: REFERENCE_DERIVED_INPUT_POLICY,
+  1890→    contextCompression: REFERENCE_DERIVED_COMPRESSION_POLICY,
+  1891→    maxOutputTokens: 4_096,
+  1892→    writeTargets: [
+  1893→      { table: 'referenceAnalysisRuns', fields: ['analysisSummary'] },
+  1894→      { table: 'references', fields: ['analysisSummary'], adoptionExtension: 'reference-analysis-reference-lifecycle' },
+  1895→    ],
+  1896→    lastVerifiedAt: '2026-08-14',
+  1897→    regressionTests: ['R-HARNESS74-reference-derived-durable'],
+  1898→  },
+  1899→  {
+  1900→    version: 1,
+  1901→    id: 'inspiration.reference-characters',
+  1902→    agentId: 'inspiration',
+  1903→    defaultForAgent: false,
+  1904→    label: '参考分析角色卡聚合',
+  1905→    owner: 'inspiration-agent',
+  1906→    promptVersion: 'reference-derived-v1',
+  1907→    executionMode: 'reference-characters',
+  1908→    contextTaskKind: 'agent-inspiration',
+  1909→    readToolNames: [],
+  1910→    contextSourceKeys: REFERENCE_DERIVED_CONTEXT_SOURCE_KEYS,
+  1911→    optionalContextSourceKeys: [],
+  1912→    inputPolicy: REFERENCE_DERIVED_INPUT_POLICY,
+  1913→    contextCompression: REFERENCE_DERIVED_COMPRESSION_POLICY,
+  1914→    maxOutputTokens: 4_096,
+  1915→    writeTargets: [
+  1916→      { table: 'referenceAnalysisRuns', fields: ['mergedCharacters'] },
+  1917→      { table: 'references', fields: ['mergedCharacters'], adoptionExtension: 'reference-analysis-reference-lifecycle' },
+  1918→    ],
+  1919→    lastVerifiedAt: '2026-08-14',
+  1920→    regressionTests: ['R-HARNESS74-reference-derived-durable'],
+  1921→  },
+  1922→  {
+  1923→    version: 1,
+  1924→    id: 'inspiration.reverse',
+  1925→    agentId: 'inspiration',
+  1926→    defaultForAgent: true,
+  1927→    label: '灵感反推',
+  1928→    owner: 'inspiration-agent',
+  1929→    promptVersion: 'inspiration-copilot-v1',
+  1930→    executionMode: 'reverse',
+  1931→    contextTaskKind: 'agent-inspiration',
+  1932→    readToolNames: ['read_inspiration_workspace'],
+  1933→    contextSourceKeys: [],
+  1934→    optionalContextSourceKeys: [],
+  1935→    inputPolicy: INSPIRATION_INPUT_POLICY,
+  1936→    contextCompression: INSPIRATION_COMPRESSION_POLICY,
+  1937→    maxOutputTokens: 8_000,
+  1938→    writeTargets: [{ table: 'inspirationWorkspaces', fields: ['versions'] }],
+  1939→    lastVerifiedAt: '2026-08-09',
+  1940→    regressionTests: ['R-AGENT1-chat-copilot-inspiration', 'R-CM1-inspiration-fusion-ui', 'R-HARNESS34-inspiration-entry', 'R-HARNESS34-inspiration-panel-ui', 'R-HARNESS2-master-terminal-verifier', 'R-HARNESS16-semantic-context-compression', 'R-HARNESS18-execution-version-freshness'],
+  1941→  },
+  1942→  {
+  1943→    version: 1,
+  1944→    id: 'inspiration.review',
+  1945→    agentId: 'inspiration',
+  1946→    defaultForAgent: false,
+  1947→    label: '灵感反推证据型语义终验',
+  1948→    owner: 'inspiration-agent',
+  1949→    promptVersion: 'inspiration-semantic-review-v1',
+  1950→    executionMode: 'review',
+  1951→    contextTaskKind: 'agent-inspiration',
+  1952→    readToolNames: [],
+  1953→    contextSourceKeys: ['inspirationWorkspace'],
+  1954→    optionalContextSourceKeys: [],
+  1955→    inputPolicy: INSPIRATION_INPUT_POLICY,
+  1956→    contextCompression: INSPIRATION_COMPRESSION_POLICY,
+  1957→    maxOutputTokens: 3_000,
+  1958→    writeTargets: [],
+  1959→    lastVerifiedAt: '2026-08-09',
+  1960→    regressionTests: ['R-HARNESS27-master-candidate-semantic-review'],
+  1961→  },
+  1962→  {
+  1963→    version: 1,
+  1964→    id: 'outline.story-arcs',
+  1965→    agentId: 'outline',
+  1966→    defaultForAgent: false,
+  1967→    label: '主线与支线编排',
+  1968→    owner: 'outline-agent',
+  1969→    promptVersion: 'story-arc-copilot-v8',
+  1970→    executionMode: 'story-arcs',
+  1971→    contextTaskKind: 'agent-outline',
+  1972→    readToolNames: [],
+  1973→    contextSourceKeys: OUTLINE_STORY_ARC_CONTEXT_SOURCE_KEYS,
+  1974→    optionalContextSourceKeys: [],
+  1975→    inputPolicy: OUTLINE_STORY_ARC_INPUT_POLICY,
+  1976→    contextCompression: OUTLINE_STORY_ARC_COMPRESSION_POLICY,
+  1977→    contextGateway: {
+  1978→      version: 1,
+  1979→      rollout: 'required',
+  1980→      requiredWriteTargets: ['storyArcs.name', 'storyArcs.type', 'storyArcs.stages', 'storyArcs.description'],
+  1981→      providerSourceKeys: ['ragSelection'],
+  1982→      allowedResourceKinds: [
+  1983→        'world', 'worldview-field', 'story-core-field', 'character',
+  1984→        'character-relation', 'story-arc', 'storyline-progress', 'outline-node',
+  1985→        'detailed-outline', 'chapter', 'foreshadow', 'location', 'codex-entry',
+  1986→        'world-link', 'fact', 'reference', 'narrative-blueprint',
+  1987→      ],
+  1988→      allowedDepths: ['index', 'summary', 'focused', 'full', 'original'],
+  1989→      maxReadCalls: 5,
+  1990→      maxRetrievedTokens: 48_000,
+  1991→      maxPlanningSteps: 6,
+  1992→      maxPlanningModelTokens: 48_000,
+  1993→      allowOriginalRead: true,
+  1994→      additionalReadToolNames: [
+  1995→        'list_context_catalog', 'search_context', 'read_context_resource', 'read_original_evidence',
+  1996→      ],
+  1997→    },
+  1998→    maxOutputTokens: 10_000,
+  1999→    writeTargets: [{
+  2000→      table: 'storyArcs',
+
+[showing lines 1-2000 of 4054; use offset=2001 with limit to continue reading]

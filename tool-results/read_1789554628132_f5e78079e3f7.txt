@@ -1,0 +1,883 @@
+     1→     1→===== subtxt_search =====
+     2→     2→[
+     3→     3→  {
+     4→     4→    "url": "https://dramatica.com",
+     5→     5→    "name": "Dramatica Narrative Platform",
+     6→     6→    "snippet": "The Dramatica Narrative Platform carries forward the story-development work creators built with Subtxt and Dramatica Theory—across novels, screenplays, film, ...",
+     7→     7→    "host_name": "dramatica.com",
+     8→     8→    "rank": 0,
+     9→     9→    "date": "",
+    10→    10→    "favicon": ""
+    11→    11→  },
+    12→    12→  {
+    13→    13→    "url": "https://www.youtube.com/watch?v=ZPBPQhQcN9o",
+    14→    14→    "name": "Introducing the Storyform Builder — Dramatica's Engine Settings",
+    15→    15→    "snippet": "Aug 27, 2025 · We're excited to show you the all-new Storyform Builder in the Subtxt/Dramatica platform—an updated take on Dramatica's classic Engine ...",
+    16→    16→    "host_name": "www.youtube.com",
+    17→    17→    "rank": 1,
+    18→    18→    "date": "",
+    19→    19→    "favicon": ""
+    20→    20→  },
+    21→    21→  {
+    22→    22→    "url": "https://discuss.dramatica.com/t/subtxt-vs-dramatica/4129",
+    23→    23→    "name": "Subtxt vs. Dramatica - Platform",
+    24→    24→    "snippet": "Sep 5, 2025 · We are in the process of migrating the Subtxt application over to the Subtxt/Dramatica platform. For now, they are separate apps, but your ...",
+    25→    25→    "host_name": "discuss.dramatica.com",
+    26→    26→    "rank": 2,
+    27→    27→    "date": "",
+    28→    28→    "favicon": ""
+    29→    29→  },
+    30→    30→  {
+    31→    31→    "url": "https://narrativefirst.com/blog/the-relationship-between-dramatica-and-subtext",
+    32→    32→    "name": "The Relationship Between Dramatica and Subtxt - Narrative First",
+    33→    33→    "snippet": "Mar 11, 2021 · ​You can integrate Dramatica Pro/Story Expert with Subtxt. I provide an easy way to upload both the Story Engine Settings report and the Plot ...",
+    34→    34→    "host_name": "narrativefirst.com",
+    35→    35→    "rank": 3,
+    36→    36→    "date": "",
+    37→    37→    "favicon": ""
+    38→    38→  },
+    39→    39→  {
+    40→    40→    "url": "https://www.youtube.com/watch?v=2KjPQU0AeiM",
+    41→    41→    "name": "Merging Dramatica into Subtxt - YouTube",
+    42→    42→    "snippet": "May 8, 2025 · Join me live as we dive into the latest Subtxt updates, talk through the refreshed terminology, and preview what's coming up in the next few ...",
+    43→    43→    "host_name": "www.youtube.com",
+    44→    44→    "rank": 4,
+    45→    45→    "date": "",
+    46→    46→    "favicon": ""
+    47→    47→  },
+    48→    48→  {
+    49→    49→    "url": "https://platform.dramatica.com/docs/subtxt",
+    50→    50→    "name": "Introduction to Subtxt - Dramatica Narrative Platform",
+    51→    51→    "snippet": "Subtxt is the application Jim Hull built to help every storyteller grasp, practice, and ultimately master Dramatica theory.",
+    52→    52→    "host_name": "platform.dramatica.com",
+    53→    53→    "rank": 5,
+    54→    54→    "date": "",
+    55→    55→    "favicon": ""
+    56→    56→  },
+    57→    57→  {
+    58→    58→    "url": "https://bsky.app/profile/subtxt.app",
+    59→    59→    "name": "Dramatica - Bluesky",
+    60→    60→    "snippet": "New in Subtxt: Storybeat Completion API! Perfect for writing apps to ensure thematic integrity. Easily check if a Storybeat aligns with your structure.",
+    61→    61→    "host_name": "bsky.app",
+    62→    62→    "rank": 6,
+    63→    63→    "date": "",
+    64→    64→    "favicon": ""
+    65→    65→  },
+    66→    66→  {
+    67→    67→    "url": "https://guide.subtxt.app/getting-started/stories-and-storyforms",
+    68→    68→    "name": "Stories and Storyforms - Subtxt with Muse - Documentation",
+    69→    69→    "snippet": "Storyform is a unique narrative structure that defines the thematic argument of a particular storyline. with Subtxt/Dramatica is like nothing else",
+    70→    70→    "host_name": "guide.subtxt.app",
+    71→    71→    "rank": 7,
+    72→    72→    "date": "",
+    73→    73→    "favicon": ""
+    74→    74→  }
+    75→    75→]
+    76→    76→
+    77→    77→===== novelcrafter_search =====
+    78→    78→[
+    79→    79→  {
+    80→    80→    "url": "https://www.novelcrafter.com",
+    81→    81→    "name": "Your Intelligent Story Bible & World Builder",
+    82→    82→    "snippet": "The Codex tracks progressions on characters, locations, and plot lines . Seamlessly organize every story element in one searchable, intelligent system. ...",
+    83→    83→    "host_name": "www.novelcrafter.com",
+    84→    84→    "rank": 0,
+    85→    85→    "date": "",
+    86→    86→    "favicon": ""
+    87→    87→  },
+    88→    88→  {
+    89→    89→    "url": "https://www.scribd.com",
+    90→    90→    "name": "Paint-By-Numbers Story Template Guide | PDF",
+    91→    91→    "snippet": "3 Add the custom prompts to Novelcrafter . 4 Create the custom Codex categories 5 Create the NOTE and universal codex entries. 6 Create the PLANNING, WRITE, EDIT ... Read more",
+    92→    92→    "host_name": "www.scribd.com",
+    93→    93→    "rank": 1,
+    94→    94→    "date": "",
+    95→    95→    "favicon": ""
+    96→    96→  },
+    97→    97→  {
+    98→    98→    "url": "https://www.papercutpost.com",
+    99→    99→    "name": "Writing a Novel in NovelCrafter Part 2 - Papercut Post",
+   100→   100→    "snippet": "Back in Part 1 I selected a plot outline template of about 40 chapters, created the structure of acts and chapters in NovelCrafter , and then put a detailed ... Read more",
+   101→   101→    "host_name": "www.papercutpost.com",
+   102→   102→    "rank": 2,
+   103→   103→    "date": "",
+   104→   104→    "favicon": ""
+   105→   105→  }
+   106→   106→]
+   107→   107→
+   108→   108→===== dramatron_search =====
+   109→   109→[
+   110→   110→  {
+   111→   111→    "url": "https://arxiv.org",
+   112→   112→    "name": "[2209.14958] Co-Writing Screenplays and Theatre Scripts",
+   113→   113→    "snippet": "by P Mirowski · 2022 · Cited by 522 — Dramatron can generate coherent scripts and screenplays complete with title, characters, story beats, location descriptions, and dialogue.",
+   114→   114→    "host_name": "arxiv.org",
+   115→   115→    "rank": 0,
+   116→   116→    "date": "",
+   117→   117→    "favicon": ""
+   118→   118→  },
+   119→   119→  {
+   120→   120→    "url": "https://aclanthology.org",
+   121→   121→    "name": "Hierarchical Neural Story Generation",
+   122→   122→    "snippet": "by A Fan · 2018 · Cited by 2684 — We explore story generation : creative sys- tems that can build coherent and fluent passages of text about a topic. We collect a large dataset of 300K human- ... 10 pages",
+   123→   123→    "host_name": "aclanthology.org",
+   124→   124→    "rank": 1,
+   125→   125→    "date": "",
+   126→   126→    "favicon": ""
+   127→   127→  },
+   128→   128→  {
+   129→   129→    "url": "https://www.emergentmind.com",
+   130→   130→    "name": "Dramatron: Hierarchical Script Generation",
+   131→   131→    "snippet": "Dec 18, 2025 — Dramatron is a hierarchical, prompt-chaining system that leverages a 70B-parameter LLM to generate long-form creative texts such as screenplays ...",
+   132→   132→    "host_name": "www.emergentmind.com",
+   133→   133→    "rank": 2,
+   134→   134→    "date": "Dec 18, 2025",
+   135→   135→    "favicon": ""
+   136→   136→  },
+   137→   137→  {
+   138→   138→    "url": "https://github.com",
+   139→   139→    "name": "yingpengma/Awesome-Story-Generation",
+   140→   140→    "snippet": "This repository collects awesome papers about Story Generation / Storytelling in LLM era . Papers are listed chronologically (most recent first).",
+   141→   141→    "host_name": "github.com",
+   142→   142→    "rank": 3,
+   143→   143→    "date": "",
+   144→   144→    "favicon": ""
+   145→   145→  },
+   146→   146→  {
+   147→   147→    "url": "https://dl.acm.org",
+   148→   148→    "name": "Co-Writing Screenplays and Theatre Scripts with",
+   149→   149→    "snippet": "Dramatron's Hierarchical Coherent Story Generation . Dramatron starts from a log line to generate a title and characters. Characters generated are used as ...",
+   150→   150→    "host_name": "dl.acm.org",
+   151→   151→    "rank": 4,
+   152→   152→    "date": "",
+   153→   153→    "favicon": ""
+   154→   154→  }
+   155→   155→]
+   156→   156→
+   157→   157→===== stc_json_search =====
+   158→   158→[
+   159→   159→  {
+   160→   160→    "url": "https://gist.github.com/dideler/6043168",
+   161→   161→    "name": "Save the Cat! - Beat Sheet - Github-Gist",
+   162→   162→    "snippet": "A formula that lays out, on a page-by-page basis, exactly what should happen when, in a screenplay. Each page is roughly equivalent to a minute of screen time.",
+   163→   163→    "host_name": "gist.github.com",
+   164→   164→    "rank": 0,
+   165→   165→    "date": "",
+   166→   166→    "favicon": ""
+   167→   167→  },
+   168→   168→  {
+   169→   169→    "url": "https://www.youtube.com/watch?v=4rUI0vZUvsM",
+   170→   170→    "name": "The 'Save the Cat' Beat Sheet: The Ultimate Guide - YouTube",
+   171→   171→    "snippet": "Feb 3, 2025 · Martin from Reedsy shakes the tree to uncover the basics behind Save the Cat's Beat Sheet, one of the most popular story systems writers use ...",
+   172→   172→    "host_name": "www.youtube.com",
+   173→   173→    "rank": 1,
+   174→   174→    "date": "",
+   175→   175→    "favicon": ""
+   176→   176→  },
+   177→   177→  {
+   178→   178→    "url": "https://www.reddit.com/r/Screenwriting/comments/1chx4zd/save_the_cat_beat_sheet_cheat_sheet_pdf_resource",
+   179→   179→    "name": "Save the Cat! Beat Sheet Cheat Sheet [PDF Resource] - Reddit",
+   180→   180→    "snippet": "May 1, 2024 · I've been working on a Save the Cat! Beat Sheet Cheat Sheet for the past year and just want to share it as a resource for those learning the ... How good is the \"Save The Cat\" Beat Sheet? : r/writing - Reddit Do authors or screenwriters really use the 'save the cat; structure? More results from www.reddit.com",
+   181→   181→    "host_name": "www.reddit.com",
+   182→   182→    "rank": 2,
+   183→   183→    "date": "",
+   184→   184→    "favicon": ""
+   185→   185→  },
+   186→   186→  {
+   187→   187→    "url": "https://github.com/enkiv2/savethecat",
+   188→   188→    "name": "GitHub - enkiv2/savethecat: Film beat generation",
+   189→   189→    "snippet": "Beat Sheet like those described in \"Save the Cat!\" Each beat corresponds to 3 pages of screenplay, for a 120 page script / 120 minute movie.",
+   190→   190→    "host_name": "github.com",
+   191→   191→    "rank": 3,
+   192→   192→    "date": "",
+   193→   193→    "favicon": ""
+   194→   194→  },
+   195→   195→  {
+   196→   196→    "url": "https://reedsy.com/blog/guide/story-structure/save-the-cat-beat-sheet",
+   197→   197→    "name": "Save the Cat Beat Sheet: The Ultimate Guide (+ Template) - Reedsy",
+   198→   198→    "snippet": "Aug 21, 2026 · Find out everything you need to know about using the Save the Cat beat sheet to build a watertight structure for your book.",
+   199→   199→    "host_name": "reedsy.com",
+   200→   200→    "rank": 4,
+   201→   201→    "date": "",
+   202→   202→    "favicon": ""
+   203→   203→  },
+   204→   204→  {
+   205→   205→    "url": "https://savethecat.com/beat-mapper",
+   206→   206→    "name": "Save the Cat!® Beat Sheet Mapper",
+   207→   207→    "snippet": "The Save the Cat Beat Sheet Mapper — a free interactive beat sheet template. Plot your novel or screenplay across all 15 beats online. No signup to try.",
+   208→   208→    "host_name": "savethecat.com",
+   209→   209→    "rank": 5,
+   210→   210→    "date": "",
+   211→   211→    "favicon": ""
+   212→   212→  },
+   213→   213→  {
+   214→   214→    "url": "https://www.studiobinder.com/blog/save-the-cat-beat-sheet",
+   215→   215→    "name": "Save the Cat Beat Sheet Explained [with FREE Template]",
+   216→   216→    "snippet": "Jan 14, 2025 · In his book “Save the Cat,” screenwriter Blake Snyder boiled film plot structure down to 15 beats. He also includes the suggested page number ...",
+   217→   217→    "host_name": "www.studiobinder.com",
+   218→   218→    "rank": 6,
+   219→   219→    "date": "",
+   220→   220→    "favicon": ""
+   221→   221→  },
+   222→   222→  {
+   223→   223→    "url": "https://kindlepreneur.com/save-the-cat-beat-sheet",
+   224→   224→    "name": "Save the Cat Beat Sheet: How the 15 Beats Shape a Novel",
+   225→   225→    "snippet": "Jun 16, 2026 · It breaks the story into 15 beats, from the opening image to the final image, and each beat is meant to do something specific. The structure is ...",
+   226→   226→    "host_name": "kindlepreneur.com",
+   227→   227→    "rank": 7,
+   228→   228→    "date": "",
+   229→   229→    "favicon": ""
+   230→   230→  }
+   231→   231→]
+   232→   232→
+   233→   233→===== plottr_search =====
+   234→   234→[
+   235→   235→  {
+   236→   236→    "url": "https://plottr.com/beat-sheets/situation-short-story-beat-sheet",
+   237→   237→    "name": "Character in a Situation Beat Sheet - Short Story Structure - Plottr",
+   238→   238→    "snippet": "Jul 28, 2025 · Short story structure requires saying more with less. A great short story beat sheet helps. Explore a 7 point template, available in Plottr.",
+   239→   239→    "host_name": "plottr.com",
+   240→   240→    "rank": 0,
+   241→   241→    "date": "",
+   242→   242→    "favicon": ""
+   243→   243→  },
+   244→   244→  {
+   245→   245→    "url": "https://plottr.com",
+   246→   246→    "name": "Plottr - Bring your story to life in a weekend",
+   247→   247→    "snippet": "Plottr comes with 40+ plot outlining templates based on proven storytelling structures to help move your story from idea to outline to manuscript. With You Every Step · Build Immersive Worlds · Every Book In The Series",
+   248→   248→    "host_name": "plottr.com",
+   249→   249→    "rank": 1,
+   250→   250→    "date": "",
+   251→   251→    "favicon": ""
+   252→   252→  },
+   253→   253→  {
+   254→   254→    "url": "https://plottr.com/horror-beat-sheet-template",
+   255→   255→    "name": "Horror Beat Sheet: Create Stories That Go Bump in the Night - Plottr",
+   256→   256→    "snippet": "May 13, 2024 · Plottr's Horror Beat Sheet plot structure template will help you write page-turners that keep readers up at night. outlining and story bible  ...",
+   257→   257→    "host_name": "plottr.com",
+   258→   258→    "rank": 2,
+   259→   259→    "date": "",
+   260→   260→    "favicon": ""
+   261→   261→  },
+   262→   262→  {
+   263→   263→    "url": "https://www.youtube.com/watch?v=CqvLf3_sp54",
+   264→   264→    "name": "How to Outline a Novel Using Plottr - YouTube",
+   265→   265→    "snippet": "Aug 20, 2024 · I share how I outline/plot my novels using the Plottr software. This method I outlined in a FOLD workshop previously, and decided to do a ...",
+   266→   266→    "host_name": "www.youtube.com",
+   267→   267→    "rank": 3,
+   268→   268→    "date": "",
+   269→   269→    "favicon": ""
+   270→   270→  },
+   271→   271→  {
+   272→   272→    "url": "https://plottr.com/beat-sheets",
+   273→   273→    "name": "Beat Sheets Archive - Plottr",
+   274→   274→    "snippet": "Read a guide to the 24 chapter novel outline using this beloved fantasy series. You can use this plot template in Plottr, too! [Template + Example]",
+   275→   275→    "host_name": "plottr.com",
+   276→   276→    "rank": 4,
+   277→   277→    "date": "",
+   278→   278→    "favicon": ""
+   279→   279→  },
+   280→   280→  {
+   281→   281→    "url": "https://storyflow.so/blog/best-beat-sheet-tools-2026",
+   282→   282→    "name": "The 12 Best Beat Sheet Tools in 2026 (We Tested Them All)",
+   283→   283→    "snippet": "May 14, 2026 · Plottr at $25 a year and Scrivener at $59.99 one-time are the best value in software. Arc Studio at $8/mo is the cheapest cloud screenwriting ...",
+   284→   284→    "host_name": "storyflow.so",
+   285→   285→    "rank": 5,
+   286→   286→    "date": "",
+   287→   287→    "favicon": ""
+   288→   288→  },
+   289→   289→  {
+   290→   290→    "url": "https://www.notion.com/templates/beat-sheet-for-novelists-screenwriters?srsltid=AU7gw4Xti3rojFVLGviZvyVns4z9UR9tm_yd08SeXXY-8wVmkBiagEjw",
+   291→   291→    "name": "Beat Sheet: Story Structure for Screenwriters Template by NotoMantra",
+   292→   292→    "snippet": "Rating 5.0 (10) The Beat Sheet gives you the proven 15-beat story structure laid out as a clean, visual spine. Read what each beat is for, write your story's version, and watch",
+   293→   293→    "host_name": "www.notion.com",
+   294→   294→    "rank": 6,
+   295→   295→    "date": "",
+   296→   296→    "favicon": ""
+   297→   297→  },
+   298→   298→  {
+   299→   299→    "url": "https://plottr.com/tag/plot-templates",
+   300→   300→    "name": "Plot Templates Archives - Plottr",
+   301→   301→    "snippet": "Romance Beat Sheet in Plottr helps you guide readers from a strong hook to a happily ever after (or “happily for now”). Here's how to craft better romances.",
+   302→   302→    "host_name": "plottr.com",
+   303→   303→    "rank": 7,
+   304→   304→    "date": "",
+   305→   305→    "favicon": ""
+   306→   306→  }
+   307→   307→]
+   308→   308→
+   309→   309→===== dramatica_search =====
+   310→   310→[
+   311→   311→  {
+   312→   312→    "url": "https://platform.dramatica.com/docs/storyform-builder",
+   313→   313→    "name": "Storyform Builder - Log in - Dramatica Narrative Platform",
+   314→   314→    "snippet": "Throughlines presents the full set of Storypoints organized by Objective Story, Main Character, Influence Character, and Relationship Story. Domains opens",
+   315→   315→    "host_name": "platform.dramatica.com",
+   316→   316→    "rank": 0,
+   317→   317→    "date": "",
+   318→   318→    "favicon": ""
+   319→   319→  },
+   320→   320→  {
+   321→   321→    "url": "https://www.youtube.com/watch?v=ZPBPQhQcN9o",
+   322→   322→    "name": "Introducing the Storyform Builder — Dramatica's Engine Settings",
+   323→   323→    "snippet": "Aug 27, 2025 · We're excited to show you the all-new Storyform Builder in the Subtxt/Dramatica platform—an updated take on Dramatica's classic Engine ...",
+   324→   324→    "host_name": "www.youtube.com",
+   325→   325→    "rank": 1,
+   326→   326→    "date": "",
+   327→   327→    "favicon": ""
+   328→   328→  },
+   329→   329→  {
+   330→   330→    "url": "https://www.jonathanfesmire.com/exploring-the-dramatica-method",
+   331→   331→    "name": "Exploring the Dramatica Method - Jonathan Fesmire",
+   332→   332→    "snippet": "Jun 29, 2024 · Dramatica identifies 64 essential story points that need to be addressed for a complete narrative. These include elements like the Goal, ...",
+   333→   333→    "host_name": "www.jonathanfesmire.com",
+   334→   334→    "rank": 2,
+   335→   335→    "date": "",
+   336→   336→    "favicon": ""
+   337→   337→  },
+   338→   338→  {
+   339→   339→    "url": "https://narrativefirst.com/articles/tying-the-towers-of-story-structure-together",
+   340→   340→    "name": "Tying the Towers of Story Structure Together - Articles - Narrative First",
+   341→   341→    "snippet": "Temptation, Chaos, Proaction and Expectation represent just a small portion of the 64 individual \"traits\" that can be combined and mixed to create character.",
+   342→   342→    "host_name": "narrativefirst.com",
+   343→   343→    "rank": 3,
+   344→   344→    "date": "",
+   345→   345→    "favicon": ""
+   346→   346→  },
+   347→   347→  {
+   348→   348→    "url": "https://storymind.com/blog/dramatica-a-new-theory-of-story",
+   349→   349→    "name": "Dramatica – A New Theory of Story | The Storymind Writer's Library",
+   350→   350→    "snippet": "Dramatica is a revolutionary theory of how and why stories work that can be used to analyze existing stories for flaws and to create original works with ...",
+   351→   351→    "host_name": "storymind.com",
+   352→   352→    "rank": 4,
+   353→   353→    "date": "",
+   354→   354→    "favicon": ""
+   355→   355→  },
+   356→   356→  {
+   357→   357→    "url": "https://discuss.dramatica.com/t/sequences-scenes-and-events/208",
+   358→   358→    "name": "Sequences, Scenes, and Events - Discuss Dramatica",
+   359→   359→    "snippet": "Dec 8, 2014 · One of the things I've found interesting in Dramatica's theory are the Dynamic Story Points: Acts, Sequences, Scenes, and Events. The way ...",
+   360→   360→    "host_name": "discuss.dramatica.com",
+   361→   361→    "rank": 5,
+   362→   362→    "date": "",
+   363→   363→    "favicon": ""
+   364→   364→  },
+   365→   365→  {
+   366→   366→    "url": "https://www.how-to-write-a-book-now.com/using-dramatica-theory.html",
+   367→   367→    "name": "Using Dramatica Theory to Improve Your Fiction Writing",
+   368→   368→    "snippet": "Dramatica goes beyong most models in arguing that well structured stories actually contain four throughlines. These are: a. An overall throughline involving the ...",
+   369→   369→    "host_name": "www.how-to-write-a-book-now.com",
+   370→   370→    "rank": 6,
+   371→   371→    "date": "",
+   372→   372→    "favicon": ""
+   373→   373→  },
+   374→   374→  {
+   375→   375→    "url": "https://www.luisescobarblog.com/making-my-illustrated-film/story-theory-and-throughlines",
+   376→   376→    "name": "15 Story Theory and throughlines | Luis' Illustrated Blog",
+   377→   377→    "snippet": "DRAMATICA puts forth are: MAIN Character, IMPACT Character, OVERALL Story, MAIN vs. IMPACT Story. The four “areas of conflict” DRAMATICA puts forth are: AN ...",
+   378→   378→    "host_name": "www.luisescobarblog.com",
+   379→   379→    "rank": 7,
+   380→   380→    "date": "",
+   381→   381→    "favicon": ""
+   382→   382→  }
+   383→   383→]
+   384→   384→
+   385→   385→===== sudowrite_search =====
+   386→   386→[
+   387→   387→  {
+   388→   388→    "url": "https://sudowrite.com/blog/story-bible-template",
+   389→   389→    "name": "Story Bible Template: How to Build One (and How Sudowrite Does It",
+   390→   390→    "snippet": "Apr 9, 2026 · Sudowrite's Story Bible builds this interconnected structure automatically, and the AI references every layer when it writes with you.",
+   391→   391→    "host_name": "sudowrite.com",
+   392→   392→    "rank": 0,
+   393→   393→    "date": "",
+   394→   394→    "favicon": ""
+   395→   395→  },
+   396→   396→  {
+   397→   397→    "url": "https://www.youtube.com/watch?v=4fXYnBraEpQ",
+   398→   398→    "name": "Sudowrite 201: Working with Story Bible - YouTube",
+   399→   399→    "snippet": "May 24, 2024 · ... Synopsis - Creating in-depth Character profiles - Choosing the right Story Outline structure - Adapting Story Bible sections for each ...",
+   400→   400→    "host_name": "www.youtube.com",
+   401→   401→    "rank": 1,
+   402→   402→    "date": "",
+   403→   403→    "favicon": ""
+   404→   404→  },
+   405→   405→  {
+   406→   406→    "url": "https://sudowrite.com/blog/how-to-outline-a-novel-with-ai-sudowrites-outline-feature-step-by-step",
+   407→   407→    "name": "How to Outline a Novel with AI: Five Methods Compared - Sudowrite",
+   408→   408→    "snippet": "Mar 4, 2026 · Sudowrite's Outline feature uses your Story Bible—characters, world, synopsis—to generate a chapter-by-chapter plan in minutes, not weeks. Table Of Contents · Scene-Sequel · Why Outlining Your Novel...",
+   409→   409→    "host_name": "sudowrite.com",
+   410→   410→    "rank": 2,
+   411→   411→    "date": "",
+   412→   412→    "favicon": ""
+   413→   413→  },
+   414→   414→  {
+   415→   415→    "url": "https://www.youtube.com/watch?v=cyTxICp_aKo",
+   416→   416→    "name": "Sudowrite's Story Bible: How to Write a Novel in 7 Clicks (with AI Help)",
+   417→   417→    "snippet": "Oct 1, 2025 · : from your first Braindump to a chapter-by-chapter Outline. You'll see how Story Bible ... structure) Editing/guiding an AI-generated ...",
+   418→   418→    "host_name": "www.youtube.com",
+   419→   419→    "rank": 3,
+   420→   420→    "date": "",
+   421→   421→    "favicon": ""
+   422→   422→  },
+   423→   423→  {
+   424→   424→    "url": "https://www.reddit.com/r/WritingWithAI/comments/1pqpoeq/is_sudowrite_good_at_generating_stories",
+   425→   425→    "name": "Is Sudowrite good at generating stories? : r/WritingWithAI - Reddit",
+   426→   426→    "snippet": "Dec 20, 2025 · It's built around story structure first acts, chapters, scenes, character context and lets you ask an AI agent questions about a specific scene ...",
+   427→   427→    "host_name": "www.reddit.com",
+   428→   428→    "rank": 4,
+   429→   429→    "date": "",
+   430→   430→    "favicon": ""
+   431→   431→  },
+   432→   432→  {
+   433→   433→    "url": "https://docs.sudowrite.com/using-sudowrite/1ow1qkGqof9rtcyGnrWUBS/what-is-story-bible/jmWepHcQdJetNrE991fjJC",
+   434→   434→    "name": "What is Story Bible - Sudowrite | Documentation",
+   435→   435→    "snippet": "Jan 13, 2026 · Story Bible gathers the core elements of your story in one place so that you and Sudowrite's AI can reference them as you develop your work. What's Story Bible? · Overview · How To Move Through Story...",
+   436→   436→    "host_name": "docs.sudowrite.com",
+   437→   437→    "rank": 5,
+   438→   438→    "date": "",
+   439→   439→    "favicon": ""
+   440→   440→  },
+   441→   441→  {
+   442→   442→    "url": "https://sudowrite.com",
+   443→   443→    "name": "Sudowrite - Best AI Writing Partner for Fiction",
+   444→   444→    "snippet": "Write a novel from start to finish. FAST. Story Bible takes you step-by-step from idea, to outline, to beating out chapters, to 1,000s of words, in your style.",
+   445→   445→    "host_name": "sudowrite.com",
+   446→   446→    "rank": 6,
+   447→   447→    "date": "",
+   448→   448→    "favicon": ""
+   449→   449→  },
+   450→   450→  {
+   451→   451→    "url": "https://www.youtube.com/watch?v=iQDVMuYjvRk",
+   452→   452→    "name": "Introducing Sudowrite Story Engine - YouTube",
+   453→   453→    "snippet": "May 17, 2023 · Story Engine is a new tool from Sudowrite that helps you write an entire novel in collaboration with an AI.",
+   454→   454→    "host_name": "www.youtube.com",
+   455→   455→    "rank": 7,
+   456→   456→    "date": "",
+   457→   457→    "favicon": ""
+   458→   458→  }
+   459→   459→]
+   460→   460→
+   461→   461→===== cn_ai_search =====
+   462→   462→[
+   463→   463→  {
+   464→   464→    "url": "https://www.hello123.com",
+   465→   465→    "name": "阅文妙笔大模型：国内首个网文大模型 - Hello123工具导航",
+   466→   466→    "snippet": "2025年7月29日 — 这是 阅文 集团推出的国内首个 网文 垂类大模型，专门为 网文 作者打造。通过角色生成、世界观构建、场景描写等 AI 辅助功能，它将创作模式从”手动写作”升级为” ...",
+   467→   467→    "host_name": "www.hello123.com",
+   468→   468→    "rank": 0,
+   469→   469→    "date": "2025年7月29日",
+   470→   470→    "favicon": ""
+   471→   471→  },
+   472→   472→  {
+   473→   473→    "url": "https://apps.microsoft.com",
+   474→   474→    "name": "彩云小梦- Windows官方下载| 微软应用商店",
+   475→   475→    "snippet": "彩云小梦 是依托于彩云科技自研模型、DeepSeek R1、豆包等大模型的智能写作 AI 。你只需开个头， AI 就会帮你创作故事。你可以自由定义故事的世界设定，并扮演其中的角色， ...",
+   476→   476→    "host_name": "apps.microsoft.com",
+   477→   477→    "rank": 1,
+   478→   478→    "date": "",
+   479→   479→    "favicon": ""
+   480→   480→  },
+   481→   481→  {
+   482→   482→    "url": "https://ai-bot.cn",
+   483→   483→    "name": "彩云小梦",
+   484→   484→    "snippet": "彩云小梦 是彩云科技（彩云天气和彩云小译背后的团队）推出的 AI 故事写作助手。用户只需提供故事开头， AI 能续写，生成完整故事。工具支持用户自定义故事背景和角色， ...",
+   485→   485→    "host_name": "ai-bot.cn",
+   486→   486→    "rank": 2,
+   487→   487→    "date": "",
+   488→   488→    "favicon": ""
+   489→   489→  },
+   490→   490→  {
+   491→   491→    "url": "https://zhuanlan.zhihu.com",
+   492→   492→    "name": "国内首个网文大模型来了！「阅文妙笔」：我最懂网文",
+   493→   493→    "snippet": "2023年7月20日 — 写 网文 ，现在也要以大模型的“姿势”打开了。 这不，网络文学巨头阅文集团就打响了这么一枪：. 正式发布国内首个网文大模型—— 阅文妙笔 。",
+   494→   494→    "host_name": "zhuanlan.zhihu.com",
+   495→   495→    "rank": 3,
+   496→   496→    "date": "2023年7月20日",
+   497→   497→    "favicon": ""
+   498→   498→  },
+   499→   499→  {
+   500→   500→    "url": "https://www.aihub.cn",
+   501→   501→    "name": "作家助手妙笔版 - AIHub",
+   502→   502→    "snippet": "2023年7月20日 — 作家助手妙笔版是基于阅文“ 阅文妙笔 ”大模型开发的 AI 写作助手。支持角色设定，打斗、景物描写，妙笔画师和世界观设定等。",
+   503→   503→    "host_name": "www.aihub.cn",
+   504→   504→    "rank": 4,
+   505→   505→    "date": "2023年7月20日",
+   506→   506→    "favicon": ""
+   507→   507→  },
+   508→   508→  {
+   509→   509→    "url": "https://baike.baidu.com",
+   510→   510→    "name": "阅文妙笔",
+   511→   511→    "snippet": "阅文妙笔 是阅文集团于2023年7月19日发布的网络文学行业专用大模型，定位为辅助作家创作的智能化工具。该模型基于阅文二十余年 网文 数据积累研发，具备 网文 语言风格理解 ...",
+   512→   512→    "host_name": "baike.baidu.com",
+   513→   513→    "rank": 5,
+   514→   514→    "date": "",
+   515→   515→    "favicon": ""
+   516→   516→  },
+   517→   517→  {
+   518→   518→    "url": "https://cloud.tencent.com",
+   519→   519→    "name": "AI给你写网文，你会看么？阅文推出写作“金手指” - 腾讯云",
+   520→   520→    "snippet": "2023年7月20日 — 阅文妙笔 是国内首个网文大模型，基于海量数据和 AI 技术，为 网文 作者提供人物、世界观、情节等全方位创作辅助，助力解决写作难题，提升创作效率。",
+   521→   521→    "host_name": "cloud.tencent.com",
+   522→   522→    "rank": 6,
+   523→   523→    "date": "2023年7月20日",
+   524→   524→    "favicon": ""
+   525→   525→  }
+   526→   526→]
+   527→   527→
+   528→   528→===== re3_search =====
+   529→   529→[
+   530→   530→  {
+   531→   531→    "url": "https://github.com",
+   532→   532→    "name": "yingpengma/Awesome-Story-Generation",
+   533→   533→    "snippet": "This repository collects an extensive list of awesome papers about Story Generation / Storytelling, exclusively focusing on the era of Large Language Models ...",
+   534→   534→    "host_name": "github.com",
+   535→   535→    "rank": 0,
+   536→   536→    "date": "",
+   537→   537→    "favicon": ""
+   538→   538→  },
+   539→   539→  {
+   540→   540→    "url": "https://arxiv.org",
+   541→   541→    "name": "Re3: Generating Longer Stories With Recursive",
+   542→   542→    "snippet": "by K Yang · 2022 · Cited by 320 — Abstract:We consider the problem of automatically generating longer stories of over two thousand words . Compared to prior work on shorter ... Read more",
+   543→   543→    "host_name": "arxiv.org",
+   544→   544→    "rank": 1,
+   545→   545→    "date": "",
+   546→   546→    "favicon": ""
+   547→   547→  },
+   548→   548→  {
+   549→   549→    "url": "https://aclanthology.org",
+   550→   550→    "name": "Generating Longer Stories With Recursive Reprompting",
+   551→   551→    "snippet": "by K Yang · 2022 · Cited by 321 — We consider the problem of automatically gen- erating longer stories of over two thousand words . Compared to prior work on shorter stories, long-range plot ... Read more 87 pages",
+   552→   552→    "host_name": "aclanthology.org",
+   553→   553→    "rank": 2,
+   554→   554→    "date": "",
+   555→   555→    "favicon": ""
+   556→   556→  },
+   557→   557→  {
+   558→   558→    "url": "https://www.alphaxiv.org",
+   559→   559→    "name": "Re3: Generating Longer Stories With Recursive",
+   560→   560→    "snippet": "This paper is highly relevant as it proposes a system for story generation conditioned on an outline , similar to Re3's Plan and Draft modules. It represents ... Read more",
+   561→   561→    "host_name": "www.alphaxiv.org",
+   562→   562→    "rank": 3,
+   563→   563→    "date": "",
+   564→   564→    "favicon": ""
+   565→   565→  },
+   566→   566→  {
+   567→   567→    "url": "https://violetpeng.github.io",
+   568→   568→    "name": "Re3: Generating Longer Stories With Recursive",
+   569→   569→    "snippet": "Abstract. We consider the problem of automatically generating longer stories of over two thousand words . Compared to prior work on shorter stories, ... Read more",
+   570→   570→    "host_name": "violetpeng.github.io",
+   571→   571→    "rank": 4,
+   572→   572→    "date": "",
+   573→   573→    "favicon": ""
+   574→   574→  },
+   575→   575→  {
+   576→   576→    "url": "https://www.researchgate.net",
+   577→   577→    "name": "Re3: Generating Longer Stories With Recursive",
+   578→   578→    "snippet": "Re3 [64] , DOC [65], and DOME [11] target multi-thousand-word story generation through recursive revision, detailed outline control, and dynamic hierarchical ... Read more",
+   579→   579→    "host_name": "www.researchgate.net",
+   580→   580→    "rank": 5,
+   581→   581→    "date": "",
+   582→   582→    "favicon": ""
+   583→   583→  }
+   584→   584→]
+   585→   585→
+   586→   586→===== doc_search =====
+   587→   587→[
+   588→   588→  {
+   589→   589→    "url": "https://arxiv.org",
+   590→   590→    "name": "Generating Long-form Story Using Dynamic Hierarchical",
+   591→   591→    "snippet": "Dec 18, 2024 — Doc: Improving long story coherence with detailed outline control . In Annual Meeting of the Association for Computational Linguistics. Yang ...",
+   592→   592→    "host_name": "arxiv.org",
+   593→   593→    "rank": 0,
+   594→   594→    "date": "Dec 18, 2024",
+   595→   595→    "favicon": ""
+   596→   596→  },
+   597→   597→  {
+   598→   598→    "url": "https://www.alphaxiv.org",
+   599→   599→    "name": "DOC: Improving Long Story Coherence With Detailed",
+   600→   600→    "snippet": "This paper introduces the Detailed Outline Control ( DOC ) framework, which addresses these challenges through enhanced planning and precise control mechanisms.",
+   601→   601→    "host_name": "www.alphaxiv.org",
+   602→   602→    "rank": 1,
+   603→   603→    "date": "",
+   604→   604→    "favicon": ""
+   605→   605→  },
+   606→   606→  {
+   607→   607→    "url": "https://www.semanticscholar.org",
+   608→   608→    "name": "DOC: Improving Long Story Coherence With Detailed",
+   609→   609→    "snippet": "DOC: Improving Long Story Coherence With Detailed Outline Control · Kevin Yang, D. Klein, +1 author. Yuandong Tian · Published in arXiv.org 20 December 2022 ...",
+   610→   610→    "host_name": "www.semanticscholar.org",
+   611→   611→    "rank": 2,
+   612→   612→    "date": "",
+   613→   613→    "favicon": ""
+   614→   614→  },
+   615→   615→  {
+   616→   616→    "url": "https://aclanthology.org",
+   617→   617→    "name": "DOC: Improving Long Story Coherence With Detailed",
+   618→   618→    "snippet": "by K Yang · 2023 · Cited by 174 — We propose the Detailed Outline Control (DOC) framework for improving long-range plot coherence when automatically generating several-thousand-word-long stories ...",
+   619→   619→    "host_name": "aclanthology.org",
+   620→   620→    "rank": 3,
+   621→   621→    "date": "",
+   622→   622→    "favicon": ""
+   623→   623→  },
+   624→   624→  {
+   625→   625→    "url": "https://violetpeng.github.io",
+   626→   626→    "name": "DOC: Improving Long Story Coherence With Detailed",
+   627→   627→    "snippet": "DOC: Improving Long Story Coherence With Detailed Outline Control . Kevin Yang, Dan Klein, Nanyun Peng, and Yuandong Tian, in Proceedings of the 61th Annual ...",
+   628→   628→    "host_name": "violetpeng.github.io",
+   629→   629→    "rank": 4,
+   630→   630→    "date": "",
+   631→   631→    "favicon": ""
+   632→   632→  },
+   633→   633→  {
+   634→   634→    "url": "https://github.com",
+   635→   635→    "name": "yangkevin2/doc-story-generation",
+   636→   636→    "snippet": "This repo contains code for DOC: Improving Long Story Coherence With Detailed Outline Control (https://arxiv.org/abs/2212.10077, ACL 2023) by Kevin Yang ...",
+   637→   637→    "host_name": "github.com",
+   638→   638→    "rank": 5,
+   639→   639→    "date": "",
+   640→   640→    "favicon": ""
+   641→   641→  }
+   642→   642→]
+   643→   643→
+   644→   644→===== novelai_search =====
+   645→   645→[
+   646→   646→  {
+   647→   647→    "url": "https://www.reddit.com/r/NovelAi/comments/1f9hzsc/how_to_use_the_authors_note_memory_and_lorebook",
+   648→   648→    "name": "How to use the Author's Note, Memory and Lorebook. : r/NovelAi",
+   649→   649→    "snippet": "Sep 5, 2024 · The AI has a limited context size that it can see at any one time, so the more you put in Memory/Lorebook/Author's Note, the less of the Story ... I want to use NovelAI to enjoy a long and in-depth story. How much ... Lorebook and chapters : r/NovelAi - Reddit More results from www.reddit.com",
+   650→   650→    "host_name": "www.reddit.com",
+   651→   651→    "rank": 0,
+   652→   652→    "date": "",
+   653→   653→    "favicon": ""
+   654→   654→  },
+   655→   655→  {
+   656→   656→    "url": "https://www.youtube.com/watch?v=TVHAqw-pgi0",
+   657→   657→    "name": "NovelAI's Lorebook Completely Redesigned - YouTube",
+   658→   658→    "snippet": "Mar 24, 2026 · #novelai ; #ai ; #aiguide ---- Music- ; https://docs.novelai.n... - The offical Novel AI documentation is comprehensive. - ; https://rentry.org/an-.",
+   659→   659→    "host_name": "www.youtube.com",
+   660→   660→    "rank": 1,
+   661→   661→    "date": "",
+   662→   662→    "favicon": ""
+   663→   663→  },
+   664→   664→  {
+   665→   665→    "url": "https://blog.novelai.net/kickstarting-your-first-ai-assisted-story-a-beginners-guide-2bd6b98d119b",
+   666→   666→    "name": "Kickstarting Your First AI-assisted Story: A Beginner's Guide - Anlatan",
+   667→   667→    "snippet": "May 21, 2024 · There are numerous other tools in your NovelAI arsenal, like the lorebook, biases, this guide is simply meant to get you started quickly with ...",
+   668→   668→    "host_name": "blog.novelai.net",
+   669→   669→    "rank": 2,
+   670→   670→    "date": "",
+   671→   671→    "favicon": ""
+   672→   672→  },
+   673→   673→  {
+   674→   674→    "url": "https://shakespeareai.net/blog/novelai-review-2026",
+   675→   675→    "name": "NovelAI Review (2026): Great for World-Building, But There's a Catch",
+   676→   676→    "snippet": "Apr 5, 2026 · In-depth NovelAI review covering lorebook system, custom AI models, world-building strengths, and why it's not for everyone.",
+   677→   677→    "host_name": "shakespeareai.net",
+   678→   678→    "rank": 3,
+   679→   679→    "date": "",
+   680→   680→    "favicon": ""
+   681→   681→  },
+   682→   682→  {
+   683→   683→    "url": "https://tapwavezodiac.github.io/novelaiUKB/Starting-your-first-story-in-NovelAI.html",
+   684→   684→    "name": "Starting your first story in NovelAI - GitHub Pages",
+   685→   685→    "snippet": "Aug 11, 2025 · NovelAI is an online service. You write text and it makes more text. Write a story and it'll try to continue it. ing your lorebook entries from ...",
+   686→   686→    "host_name": "tapwavezodiac.github.io",
+   687→   687→    "rank": 4,
+   688→   688→    "date": "",
+   689→   689→    "favicon": ""
+   690→   690→  },
+   691→   691→  {
+   692→   692→    "url": "https://www.youtube.com/watch?v=Q7jRGDo_jgY",
+   693→   693→    "name": "How to Use NovelAI for Writing Fiction - YouTube",
+   694→   694→    "snippet": "Feb 8, 2024 · This video from the Future Fiction Academy walks through the NovelAI writing software. Instructor Stacey Anderson discusses how writing with ...",
+   695→   695→    "host_name": "www.youtube.com",
+   696→   696→    "rank": 5,
+   697→   697→    "date": "",
+   698→   698→    "favicon": ""
+   699→   699→  },
+   700→   700→  {
+   701→   701→    "url": "https://docs.novelai.net/en/text/lorebook",
+   702→   702→    "name": "Lorebook - | NovelAI Documentation",
+   703→   703→    "snippet": "The Lorebook is the perfect place to flesh out your characters, locations, objects, factions and any other narrative elements in your story.",
+   704→   704→    "host_name": "docs.novelai.net",
+   705→   705→    "rank": 6,
+   706→   706→    "date": "",
+   707→   707→    "favicon": ""
+   708→   708→  },
+   709→   709→  {
+   710→   710→    "url": "https://docs.novelai.net/en/text/editor/storysettings",
+   711→   711→    "name": "Author's Note - | NovelAI Documentation",
+   712→   712→    "snippet": "Quickly search for lorebook entries from the Lorebook Quick Access bar, view story statistics, and export or delete your story file,",
+   713→   713→    "host_name": "docs.novelai.net",
+   714→   714→    "rank": 7,
+   715→   715→    "date": "",
+   716→   716→    "favicon": ""
+   717→   717→  }
+   718→   718→]
+   719→   719→
+   720→   720→===== articy_search =====
+   721→   721→[
+   722→   722→  {
+   723→   723→    "url": "https://blog.arcweave.com",
+   724→   724→    "name": "Top 10 tools for narrative design",
+   725→   725→    "snippet": "Articy Draft is a comprehensive game development tool which allows you to plan and write interactive narratives . The visual flowchart system offers a powerful ... Read more",
+   726→   726→    "host_name": "blog.arcweave.com",
+   727→   727→    "rank": 0,
+   728→   728→    "date": "",
+   729→   729→    "favicon": ""
+   730→   730→  },
+   731→   731→  {
+   732→   732→    "url": "https://storyflow-editor.com",
+   733→   733→    "name": "Best Narrative Design Tools for Game Devs (2026): 6 Picks",
+   734→   734→    "snippet": "Aug 1, 2025 — The best narrative design tools for game developers in 2026: StoryFlow, articy:draft, Arcweave , Twine, Ink and Yarn Spinner compared on ...",
+   735→   735→    "host_name": "storyflow-editor.com",
+   736→   736→    "rank": 1,
+   737→   737→    "date": "Aug 1, 2025",
+   738→   738→    "favicon": ""
+   739→   739→  },
+   740→   740→  {
+   741→   741→    "url": "https://loreweaver.ink",
+   742→   742→    "name": "Best Narrative Design Tools for Game Developers (2026)",
+   743→   743→    "snippet": "Apr 3, 2026 — AI-assisted tools like Arcweave (basic AI assistant), articy:draft (third-party AI extensions), Convai, Inworld, and LoreWeaver introduce ... Read more",
+   744→   744→    "host_name": "loreweaver.ink",
+   745→   745→    "rank": 2,
+   746→   746→    "date": "Apr 3, 2026",
+   747→   747→    "favicon": ""
+   748→   748→  },
+   749→   749→  {
+   750→   750→    "url": "https://www.articy.com",
+   751→   751→    "name": "Do we need narrative design tools?",
+   752→   752→    "snippet": "Feb 4, 2025 — Narrative design tools are software designed to help narrative designers and writers create, organize, and manage the story elements of a game. Read more",
+   753→   753→    "host_name": "www.articy.com",
+   754→   754→    "rank": 3,
+   755→   755→    "date": "Feb 4, 2025",
+   756→   756→    "favicon": ""
+   757→   757→  },
+   758→   758→  {
+   759→   759→    "url": "https://discussions.unity.com",
+   760→   760→    "name": "We are building a web tool for game and story design",
+   761→   761→    "snippet": "Jul 24, 2018 — The project is called Arcweave and it is a web-based flowchart-like tool to design, organize and scale game design and story content. It all ... Read more",
+   762→   762→    "host_name": "discussions.unity.com",
+   763→   763→    "rank": 4,
+   764→   764→    "date": "Jul 24, 2018",
+   765→   765→    "favicon": ""
+   766→   766→  }
+   767→   767→]
+   768→   768→
+   769→   769→===== stc_repo_search =====
+   770→   770→[
+   771→   771→  {
+   772→   772→    "url": "https://forum.obsidian.md",
+   773→   773→    "name": "Plugin: StoryLine - Obsidian plugin for writers",
+   774→   774→    "snippet": "Feb 22, 2026 — Beat Sheet Templates — Save the Cat , Three-Act, Hero's Journey — scaffold your acts with named beats. Relationship Map — Interactive force ... Read more",
+   775→   775→    "host_name": "forum.obsidian.md",
+   776→   776→    "rank": 0,
+   777→   777→    "date": "Feb 22, 2026",
+   778→   778→    "favicon": ""
+   779→   779→  },
+   780→   780→  {
+   781→   781→    "url": "https://tessl.io",
+   782→   782→    "name": "0.2.31 • skills • ai-ecoverse • Registry",
+   783→   783→    "snippet": "It builds /config from the customer repository . Relevant files: config/compute. yaml declares Edge Compute services. config/cdn. yaml ... save-the-cat . references.",
+   784→   784→    "host_name": "tessl.io",
+   785→   785→    "rank": 1,
+   786→   786→    "date": "",
+   787→   787→    "favicon": ""
+   788→   788→  },
+   789→   789→  {
+   790→   790→    "url": "https://sourceforge.net",
+   791→   791→    "name": "Best Open Source Rust Text Editors",
+   792→   792→    "snippet": "Beat sheet templates included: Hero's Journey, Save the Cat , Three-Act Structure, and more. No AI. No subscription. No cloud. All projects are local SQLite ... Read more",
+   793→   793→    "host_name": "sourceforge.net",
+   794→   794→    "rank": 2,
+   795→   795→    "date": "",
+   796→   796→    "favicon": ""
+   797→   797→  },
+   798→   798→  {
+   799→   799→    "url": "https://www.openmovie.org",
+   800→   800→    "name": "Open Source 3D Animated Series - Open Movie",
+   801→   801→    "snippet": "Anyway, after that weekend, I spent a long time trying to work out a good outline for the story I had in mind using the Save the Cat beat sheet . ... JSON format. Read more",
+   802→   802→    "host_name": "www.openmovie.org",
+   803→   803→    "rank": 3,
+   804→   804→    "date": "",
+   805→   805→    "favicon": ""
+   806→   806→  },
+   807→   807→  {
+   808→   808→    "url": "https://github.com",
+   809→   809→    "name": "question.jsonl - hemingkx/Spec-Bench",
+   810→   810→    "snippet": "... save the cat on March 12. Staff at the station told the trio they would need to return a couple of days later, when a maintenance official would be able to ... Read more",
+   811→   811→    "host_name": "github.com",
+   812→   812→    "rank": 4,
+   813→   813→    "date": "",
+   814→   814→    "favicon": ""
+   815→   815→  },
+   816→   816→  {
+   817→   817→    "url": "https://archimage.micro.blog",
+   818→   818→    "name": "Archimage's Continuity - Micro.blog",
+   819→   819→    "snippet": "2026-04-14 : I wonder how many real cats “ Save the Cat ” actually saved. Last count, I've saved 15 . #feral #cat … 2026-04-14 : Remember when space ... Read more",
+   820→   820→    "host_name": "archimage.micro.blog",
+   821→   821→    "rank": 5,
+   822→   822→    "date": "",
+   823→   823→    "favicon": ""
+   824→   824→  },
+   825→   825→  {
+   826→   826→    "url": "https://community.obsidian.md",
+   827→   827→    "name": "StoryLine - Obsidian Plugin",
+   828→   828→    "snippet": "5 days ago — Beat Sheet Templates — Save the Cat , Three-Act, Hero's Journey ... The template name is stored as a beatsheet YAML field on each scene. Read more",
+   829→   829→    "host_name": "community.obsidian.md",
+   830→   830→    "rank": 6,
+   831→   831→    "date": "Sep 11, 2026",
+   832→   832→    "favicon": ""
+   833→   833→  }
+   834→   834→]
+   835→   835→
+   836→   836→===== monomyth_search =====
+   837→   837→[
+   838→   838→  {
+   839→   839→    "url": "https://gointothestory.blcklst.com",
+   840→   840→    "name": "Dan Harmon, The Hero's Journey, and the Circle Theory of",
+   841→   841→    "snippet": "May 10, 2018 — Here are a few versions of Campbell's 'circles'. First, the 17 stages of The Hero's Journey as laid out in Campbell's book “The Hero With a ... Read more",
+   842→   842→    "host_name": "gointothestory.blcklst.com",
+   843→   843→    "rank": 0,
+   844→   844→    "date": "May 10, 2018",
+   845→   845→    "favicon": ""
+   846→   846→  },
+   847→   847→  {
+   848→   848→    "url": "http://christofwritescomics.com",
+   849→   849→    "name": "Story Circle, the Hero's Journey and the Basics of Structure",
+   850→   850→    "snippet": "May 14, 2024 — The Hero's Journey Campbell broke down the hero's journey into 17 distinct stages that act as story beats. These are: 1. The call to adventure ...",
+   851→   851→    "host_name": "christofwritescomics.com",
+   852→   852→    "rank": 1,
+   853→   853→    "date": "May 14, 2024",
+   854→   854→    "favicon": ""
+   855→   855→  },
+   856→   856→  {
+   857→   857→    "url": "https://en.wikipedia.org",
+   858→   858→    "name": "Hero's journey",
+   859→   859→    "snippet": "hero's journey, also known as the monomyth, is the common template of stories. Campbell describes 17 stages of the monomyth . Not all monomyths necessarily ...",
+   860→   860→    "host_name": "en.wikipedia.org",
+   861→   861→    "rank": 2,
+   862→   862→    "date": "",
+   863→   863→    "favicon": ""
+   864→   864→  },
+   865→   865→  {
+   866→   866→    "url": "https://reedsy.com",
+   867→   867→    "name": "Hero's Journey: Get a Strong Story Structure in 12 Steps",
+   868→   868→    "snippet": "Oct 14, 2025 — Our Hero's Journey template breaks all twelve stages in a guided workshop that helps you find your own story — using the same Rocky example we ... Read more",
+   869→   869→    "host_name": "reedsy.com",
+   870→   870→    "rank": 3,
+   871→   871→    "date": "Oct 14, 2025",
+   872→   872→    "favicon": ""
+   873→   873→  },
+   874→   874→  {
+   875→   875→    "url": "https://alamrafiul.com",
+   876→   876→    "name": "The Story Circle vs The Hero's Journey: Dan Harmon's",
+   877→   877→    "snippet": "Dec 19, 2024 — What Is the Hero's Journey? The 17 Stages of the Hero's Journey : Enter Dan Harmon's Story Circle. The 8 Steps: Breaking Down the Story Circle. Read more",
+   878→   878→    "host_name": "alamrafiul.com",
+   879→   879→    "rank": 4,
+   880→   880→    "date": "Dec 19, 2024",
+   881→   881→    "favicon": ""
+   882→   882→  }
+   883→   883→]

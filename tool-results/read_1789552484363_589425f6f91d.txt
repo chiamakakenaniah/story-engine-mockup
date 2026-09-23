@@ -1,0 +1,1635 @@
+     1→import { nanoid } from 'nanoid'
+     2→import { useAIConfigStore } from '../../stores/ai-config'
+     3→import { chat, resolveRequestConfig, type ChatResult } from '../ai/client'
+     4→import { estimateTokens } from '../ai/context-budget'
+     5→import { computeKnownCostUsd } from '../ai/usage-log'
+     6→import { supportsVerifiedJsonObjectResponseV1 } from '../ai/provider-capabilities'
+     7→import { db } from '../db/schema'
+     8→import type {
+     9→  GenerationGateIssue,
+    10→  GenerationNode,
+    11→  PreparedGenerationNode,
+    12→} from '../generation/generation-node'
+    13→import { prepareGenerationNode } from '../generation/generation-node'
+    14→import { adopt } from '../registry/adopt'
+    15→import { assembleContext } from '../registry/assemble-context'
+    16→import type { AssembleContextResult } from '../registry/types'
+    17→import type { AIConfig, ChatMessage, StoryArc, StoryArcType, WorkspaceScope } from '../types'
+    18→import { parseStages, stringifyStages, type StoryStage } from '../types/story-arc'
+    19→import type { StorylineCrossing, StorylineProgress } from '../types/storyline-progress'
+    20→import {
+    21→  readOwnedRows,
+    22→  resolveReadScopeLike,
+    23→  resolveScope,
+    24→  scopeTransactionTables,
+    25→} from '../workspace/scope'
+    26→import {
+    27→  attachAgentContextInputStateV1,
+    28→  evidenceFromContextResult,
+    29→  resolveAgentContextPolicy,
+    30→  type AgentContextEvidence,
+    31→  type AgentContextProfile,
+    32→} from './context-policy'
+    33→import {
+    34→  createAgentContextCompressionSessionV1,
+    35→  type AgentContextCompressionRuntimeV1,
+    36→} from './context-compression'
+    37→import {
+    38→  buildAgentSkillInputGuidanceV1,
+    39→  resolveAgentSkillInputStateV1,
+    40→  resolveAgentSkillV1,
+    41→  type AgentSkillId,
+    42→} from './skill-registry'
+    43→import {
+    44→  parseCreativeArtifactV1,
+    45→  resolveCreativeQualityPolicyV1,
+    46→  type CreativeArtifactFragmentV1,
+    47→  type CreativeAssumptionV1,
+    48→  type CreativeArtifactIssueV1,
+    49→  type CreativeArtifactV1,
+    50→  type CreativeCallEvidenceV1,
+    51→  type CreativeQualityModeV1,
+    52→} from './creative-reliability'
+    53→import { normalizeCreativeJsonEnvelopeV1 } from './creative-json-normalizer'
+    54→import { parseStructuredOutputV1 } from './structured-output-pipeline'
+    55→import {
+    56→  buildNarrativeBriefV1,
+    57→  formatNarrativeBriefForPromptV1,
+    58→  mergeProvisionalAssumptionsV1,
+    59→  type NarrativeBriefV1,
+    60→} from './narrative-brief'
+    61→import { hashCanonicalValue } from './run/hash'
+    62→import type { AgentTeamBudgetTracker } from './team-budget'
+    63→import {
+    64→  executeContextGatewayV1,
+    65→  type ContextGatewayExecutionV1,
+    66→} from '../context-gateway/execution'
+    67→import { isContextGatewayRequiredForWriteTargetV1 } from '../context-gateway/skill-policy'
+    68→import {
+    69→  assembleContextGatewayPacketV1,
+    70→  contextGatewayInputStateSourceKeysV1,
+    71→  projectContextGatewayInputStateV1,
+    72→} from './context-gateway-input'
+    73→import {
+    74→  STORY_INTENT_FIELDS_V1,
+    75→  readStoryCoreIntentSnapshotV1,
+    76→  storyArcIntentProjectionMetadataV1,
+    77→  type StoryCoreIntentSnapshotV1,
+    78→} from '../storyline/intent-projection'
+    79→import { updateStoryArcStagesLifecycle } from '../storyline/lifecycle'
+    80→
+    81→export type StoryArcRequestKind = 'main' | 'sub' | 'mixed'
+    82→export const STORY_ARC_OPERATIONS_V1 = ['create', 'expand', 'rewrite', 'polish', 'replan'] as const
+    83→export type StoryArcOperationV1 = typeof STORY_ARC_OPERATIONS_V1[number]
+    84→
+    85→export interface StoryArcMutationRequestV1 {
+    86→  operation: StoryArcOperationV1
+    87→  targetArcId?: number
+    88→}
+    89→
+    90→export interface StoryArcCopilotStageCandidate {
+    91→  /** ARC-1: retained/modified stages bind the stable Canon stage identity. New stages omit it. */
+    92→  stageId?: string
+    93→  title: string
+    94→  description: string
+    95→  keyEvents: string[]
+    96→  turningPoint?: string
+    97→  startVolume?: number
+    98→  endVolume?: number
+    99→}
+   100→
+   101→export interface StoryArcCopilotCandidate {
+   102→  name: string
+   103→  type: StoryArcType
+   104→  description: string
+   105→  stages: StoryArcCopilotStageCandidate[]
+   106→}
+   107→
+   108→export interface StoryArcCopilotSnapshot {
+   109→  serialized: string
+   110→  existingNames: string[]
+   111→  storyIntent: StoryCoreIntentSnapshotV1
+   112→  arcs?: Array<{
+   113→    id: number | null
+   114→    ragDocumentId?: string
+   115→    name: string
+   116→    type: StoryArcType
+   117→    description: string
+   118→    stages: string
+   119→    updatedAt: number
+   120→  }>
+   121→  progress?: Array<StorylineProgress & { ragDocumentId?: string }>
+   122→  crossings?: Array<StorylineCrossing & { ragDocumentId?: string }>
+   123→}
+   124→
+   125→export interface StoryArcCopilotInput {
+   126→  projectId: number
+   127→  projectName: string
+   128→  scope?: WorkspaceScope
+   129→  worldGroupId: number | null
+   130→  authorRequest: string
+   131→  supplementalContext: string
+   132→  inputGuidance: string
+   133→  kind: StoryArcRequestKind
+   134→  mutation: StoryArcMutationRequestV1
+   135→  assembled: AssembleContextResult
+   136→  narrativeBrief: NarrativeBriefV1
+   137→  snapshot: StoryArcCopilotSnapshot
+   138→  config: AIConfig
+   139→  routingCategory: string
+   140→  generationOverrides?: { temperature?: number; maxTokens?: number }
+   141→  signal?: AbortSignal
+   142→}
+   143→
+   144→export interface PreparedStoryArcCopilot {
+   145→  node: GenerationNode<
+   146→    StoryArcCopilotInput,
+   147→    StoryArcCopilotCandidate[],
+   148→    { writtenCount: number; ids: number[] }
+   149→  >
+   150→  prepared: PreparedGenerationNode
+   151→  input: StoryArcCopilotInput
+   152→  contextSources: string[]
+   153→  contextEvidence: AgentContextEvidence
+   154→  snapshot: StoryArcCopilotSnapshot
+   155→  kind: StoryArcRequestKind
+   156→  mutation: StoryArcMutationRequestV1
+   157→  label: string
+   158→  modelIdentity: { provider: string; model: string }
+   159→  contextGatewayExecution?: ContextGatewayExecutionV1
+   160→  runRaw: (messages: ChatMessage[]) => Promise<StoryArcRawModelResultV1>
+   161→}
+   162→
+   163→export interface StoryArcRawModelResultV1 {
+   164→  output: string
+   165→  usage?: { inputTokens: number; outputTokens: number; totalTokens: number }
+   166→  durationMs: number
+   167→}
+   168→
+   169→export interface StoryArcCreativeRunResultV1 {
+   170→  output: StoryArcCopilotCandidate[]
+   171→  draft: string
+   172→  artifact: CreativeArtifactV1
+   173→}
+   174→
+   175→interface StoryArcCopilotDependencies {
+   176→  runAI?: (messages: ChatMessage[]) => Promise<string>
+   177→  readCurrent?: () => Promise<StoryArcCopilotSnapshot>
+   178→  saveCandidates?: (
+   179→    candidates: StoryArcCopilotCandidate[],
+   180→  ) => Promise<{ writtenCount: number; ids: number[] }>
+   181→}
+   182→
+   183→const MAX_CANDIDATE_CHARS = 120_000
+   184→const MAX_ARCS = 8
+   185→const MAX_NAME_CHARS = 120
+   186→const MAX_DESCRIPTION_CHARS = 2_000
+   187→const MAX_STAGE_TITLE_CHARS = 160
+   188→const MAX_STAGE_DESCRIPTION_CHARS = 2_000
+   189→const MAX_EVENT_CHARS = 400
+   190→const MAX_KEY_EVENTS = 5
+   191→
+   192→export class StoryArcCopilotStaleError extends Error {
+   193→  constructor() {
+   194→    super('故事线已在候选生成后发生变化。为避免覆盖或合并到错误版本，请重新生成候选。')
+   195→    this.name = 'StoryArcCopilotStaleError'
+   196→  }
+   197→}
+   198→
+   199→function normalizeIdentity(value: string): string {
+   200→  return value.normalize('NFKC').trim().toLocaleLowerCase('zh-CN')
+   201→}
+   202→
+   203→async function snapshotOf(
+   204→  rows: Array<StoryArc & { ragDocumentId?: string }>,
+   205→  storyIntent: StoryCoreIntentSnapshotV1,
+   206→  progressRows: Array<StorylineProgress & { ragDocumentId?: string }>,
+   207→  crossingRows: Array<StorylineCrossing & { ragDocumentId?: string }>,
+   208→): Promise<StoryArcCopilotSnapshot> {
+   209→  const ordered = rows
+   210→    .map(row => ({
+   211→      id: row.id ?? null,
+   212→      ...(row.ragDocumentId ? { ragDocumentId: row.ragDocumentId } : {}),
+   213→      name: row.name,
+   214→      type: row.type,
+   215→      description: row.description ?? '',
+   216→      stages: row.stages,
+   217→      updatedAt: row.updatedAt,
+   218→    }))
+   219→    .sort((left, right) => (left.id ?? 0) - (right.id ?? 0))
+   220→  const progress = [...progressRows].sort((left, right) => (left.id ?? 0) - (right.id ?? 0))
+   221→  const crossings = [...crossingRows].sort((left, right) => (left.id ?? 0) - (right.id ?? 0))
+   222→  return {
+   223→    serialized: JSON.stringify({ arcs: ordered, storyIntent, progress, crossings }),
+   224→    existingNames: ordered.map(row => normalizeIdentity(row.name)),
+   225→    storyIntent,
+   226→    arcs: ordered,
+   227→    progress,
+   228→    crossings,
+   229→  }
+   230→}
+   231→
+   232→async function readSnapshot(
+   233→  projectId: number,
+   234→  scope?: WorkspaceScope,
+   235→): Promise<StoryArcCopilotSnapshot> {
+   236→  const resolved = scope ?? await resolveReadScopeLike(projectId)
+   237→  const [rows, storyIntent, progress, crossings] = await Promise.all([
+   238→    readOwnedRows<StoryArc & { ragDocumentId?: string }>(resolved, 'storyArcs', { owner: 'work' }),
+   239→    readStoryCoreIntentSnapshotV1(resolved),
+   240→    readOwnedRows<StorylineProgress & { ragDocumentId?: string }>(resolved, 'storylineProgress', { owner: 'work' }),
+   241→    readOwnedRows<StorylineCrossing & { ragDocumentId?: string }>(resolved, 'storylineCrossings', { owner: 'work' }),
+   242→  ])
+   243→  return snapshotOf(rows, storyIntent, progress, crossings)
+   244→}
+   245→
+   246→function assertAuthorRequest(value: string): string {
+   247→  const request = value.trim()
+   248→  if (request.length < 2) throw new Error('请至少输入 2 个字符的故事线要求。')
+   249→  if (request.length > 2_000) throw new Error('单次故事线要求不能超过 2000 个字符。')
+   250→  return request
+   251→}
+   252→
+   253→export function resolveStoryArcRequestKindV1(request: string): StoryArcRequestKind {
+   254→  const hasMain = /主线/.test(request)
+   255→  const hasSub = /支线|复线/.test(request)
+   256→  if (hasMain && hasSub) return 'mixed'
+   257→  if (hasSub) return 'sub'
+   258→  return 'main'
+   259→}
+   260→
+   261→export function parseStoryArcMutationRequestV1(value: unknown): StoryArcMutationRequestV1 {
+   262→  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+   263→    throw new Error('故事线操作请求必须是对象。')
+   264→  }
+   265→  const source = value as Record<string, unknown>
+   266→  const unknown = Object.keys(source).filter(key => key !== 'operation' && key !== 'targetArcId')
+   267→  if (unknown.length) throw new Error(`故事线操作请求包含未知字段：${unknown.join('、')}。`)
+   268→  if (!STORY_ARC_OPERATIONS_V1.includes(source.operation as StoryArcOperationV1)) {
+   269→    throw new Error('故事线 operation 无效。')
+   270→  }
+   271→  const operation = source.operation as StoryArcOperationV1
+   272→  if (operation === 'create') {
+   273→    if (source.targetArcId !== undefined) throw new Error('新建故事线不得携带 targetArcId。')
+   274→    return { operation }
+   275→  }
+   276→  if (typeof source.targetArcId !== 'number' || !Number.isInteger(source.targetArcId) || source.targetArcId < 1) {
+   277→    throw new Error(`${operation} 故事线必须固定有效 targetArcId。`)
+   278→  }
+   279→  return { operation, targetArcId: source.targetArcId }
+   280→}
+   281→
+   282→function assertString(
+   283→  value: unknown,
+   284→  label: string,
+   285→  maxLength: number,
+   286→): string {
+   287→  if (typeof value !== 'string' || !value.trim()) throw new Error(`${label} 必须是非空字符串。`)
+   288→  const result = value.trim()
+   289→  if (result.length > maxLength) throw new Error(`${label} 超过 ${maxLength} 字符。`)
+   290→  return result
+   291→}
+   292→
+   293→function assertExactKeys(
+   294→  value: Record<string, unknown>,
+   295→  required: readonly string[],
+   296→  optional: readonly string[],
+   297→  label: string,
+   298→): void {
+   299→  const allowed = new Set([...required, ...optional])
+   300→  const unknown = Object.keys(value).filter(key => !allowed.has(key))
+   301→  if (unknown.length) throw new Error(`${label} 包含不允许的字段：${unknown.join('、')}。`)
+   302→  const missing = required.filter(key => !Object.prototype.hasOwnProperty.call(value, key))
+   303→  if (missing.length) throw new Error(`${label} 缺少字段：${missing.join('、')}。`)
+   304→}
+   305→
+   306→function parseVolumeNumber(value: unknown, label: string): number | undefined {
+   307→  if (value === undefined) return undefined
+   308→  if (!Number.isInteger(value) || Number(value) < 1 || Number(value) > 10_000) {
+   309→    throw new Error(`${label} 必须是 1-10000 的整数。`)
+   310→  }
+   311→  return Number(value)
+   312→}
+   313→
+   314→function parseOptionalString(value: unknown, label: string, maxLength: number): string | undefined {
+   315→  if (value === undefined) return undefined
+   316→  // JSON object mode commonly materializes an unfilled optional text control as
+   317→  // an empty string. Its documented semantic meaning is absence, so normalize
+   318→  // only that exact no-information case; non-string and non-empty invalid values
+   319→  // still fail closed.
+   320→  if (typeof value === 'string' && !value.trim()) return undefined
+   321→  return assertString(value, label, maxLength)
+   322→}
+   323→
+   324→function parseStage(value: unknown, arcIndex: number, stageIndex: number): StoryArcCopilotStageCandidate {
+   325→  const label = `故事线候选第 ${arcIndex + 1} 项的第 ${stageIndex + 1} 个阶段`
+   326→  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+   327→    throw new Error(`${label} 必须是对象。`)
+   328→  }
+   329→  const source = value as Record<string, unknown>
+   330→  assertExactKeys(
+   331→    source,
+   332→    ['title', 'description', 'keyEvents'],
+   333→    ['stageId', 'turningPoint', 'startVolume', 'endVolume'],
+   334→    label,
+   335→  )
+   336→  const stageId = source.stageId === undefined
+   337→    ? undefined
+   338→    : assertString(source.stageId, `${label}.stageId`, 160)
+   339→  if (
+   340→    !Array.isArray(source.keyEvents)
+   341→    || source.keyEvents.length < 1
+   342→    || source.keyEvents.length > MAX_KEY_EVENTS
+   343→  ) {
+   344→    throw new Error(`${label}.keyEvents 必须包含 1-${MAX_KEY_EVENTS} 个事件。`)
+   345→  }
+   346→  const keyEvents = source.keyEvents.map((event, eventIndex) => assertString(
+   347→    event,
+   348→    `${label}.keyEvents[${eventIndex}]`,
+   349→    MAX_EVENT_CHARS,
+   350→  ))
+   351→  if (new Set(keyEvents.map(normalizeIdentity)).size !== keyEvents.length) {
+   352→    throw new Error(`${label}.keyEvents 不得重复。`)
+   353→  }
+   354→  const startVolume = parseVolumeNumber(source.startVolume, `${label}.startVolume`)
+   355→  const endVolume = parseVolumeNumber(source.endVolume, `${label}.endVolume`)
+   356→  if ((startVolume === undefined) !== (endVolume === undefined)) {
+   357→    throw new Error(`${label} 的卷范围必须同时提供 startVolume 和 endVolume。`)
+   358→  }
+   359→  if (startVolume !== undefined && endVolume !== undefined && startVolume > endVolume) {
+   360→    throw new Error(`${label} 的卷范围起点不能晚于终点。`)
+   361→  }
+   362→  const turningPoint = parseOptionalString(source.turningPoint, `${label}.turningPoint`, MAX_EVENT_CHARS)
+   363→  return {
+   364→    ...(stageId === undefined ? {} : { stageId }),
+   365→    title: assertString(source.title, `${label}.title`, MAX_STAGE_TITLE_CHARS),
+   366→    description: assertString(source.description, `${label}.description`, MAX_STAGE_DESCRIPTION_CHARS),
+   367→    keyEvents,
+   368→    ...(turningPoint === undefined ? {} : { turningPoint }),
+   369→    ...(startVolume === undefined ? {} : { startVolume, endVolume }),
+   370→  }
+   371→}
+   372→
+   373→function parseStoryArcCandidateRowsV1(rows: unknown[]): StoryArcCopilotCandidate[] {
+   374→  if (rows.length < 1 || rows.length > MAX_ARCS) {
+   375→    throw new Error(`故事线候选数量必须在 1-${MAX_ARCS} 之间。`)
+   376→  }
+   377→  const candidates = rows.map((value, index) => {
+   378→    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+   379→      throw new Error(`故事线候选第 ${index + 1} 项必须是对象。`)
+   380→    }
+   381→    const source = value as Record<string, unknown>
+   382→    assertExactKeys(source, ['name', 'type', 'description', 'stages'], [], `故事线候选第 ${index + 1} 项`)
+   383→    if (source.type !== 'main' && source.type !== 'sub') {
+   384→      throw new Error(`故事线候选第 ${index + 1} 项.type 必须是 main 或 sub。`)
+   385→    }
+   386→    if (!Array.isArray(source.stages) || source.stages.length < 3 || source.stages.length > 7) {
+   387→      throw new Error(`故事线候选第 ${index + 1} 项.stages 必须包含 3-7 个阶段。`)
+   388→    }
+   389→    const stages = source.stages.map((stage, stageIndex) => parseStage(stage, index, stageIndex))
+   390→    const stageNames = stages.map(stage => normalizeIdentity(stage.title))
+   391→    if (new Set(stageNames).size !== stageNames.length) {
+   392→      throw new Error(`故事线候选第 ${index + 1} 项包含重复阶段标题。`)
+   393→    }
+   394→    const type: StoryArcType = source.type
+   395→    return {
+   396→      name: assertString(source.name, `故事线候选第 ${index + 1} 项.name`, MAX_NAME_CHARS),
+   397→      type,
+   398→      description: assertString(
+   399→        source.description,
+   400→        `故事线候选第 ${index + 1} 项.description`,
+   401→        MAX_DESCRIPTION_CHARS,
+   402→      ),
+   403→      stages,
+   404→    }
+   405→  })
+   406→  const names = candidates.map(candidate => normalizeIdentity(candidate.name))
+   407→  if (new Set(names).size !== names.length) throw new Error('故事线候选包含重复名称。')
+   408→  return candidates
+   409→}
+   410→
+   411→export function parseStoryArcCandidateDraft(draft: string): StoryArcCopilotCandidate[] {
+   412→  return parseStructuredOutputV1({
+   413→    raw: draft,
+   414→    contract: {
+   415→      version: 1,
+   416→      schemaId: 'story-arc-candidate.v1',
+   417→      target: 'storyArcs.batch',
+   418→      root: 'array',
+   419→      maxChars: MAX_CANDIDATE_CHARS,
+   420→    },
+   421→    parse: value => parseStoryArcCandidateRowsV1(value as unknown[]),
+   422→  })
+   423→}
+   424→
+   425→/**
+   426→ * Production model transport v2. Editable/persisted candidates intentionally
+   427→ * remain a bare JSON array, while model output uses an exact object envelope so
+   428→ * providers with JSON-object mode can enforce a compatible top-level value.
+   429→ */
+   430→export function parseStoryArcModelResponseV2(raw: string): StoryArcCopilotCandidate[] {
+   431→  return parseStructuredOutputV1({
+   432→    raw,
+   433→    contract: {
+   434→      version: 1,
+   435→      schemaId: 'story-arc-model-response.v2',
+   436→      target: 'storyArcs.batch',
+   437→      root: 'object',
+   438→      maxChars: MAX_CANDIDATE_CHARS,
+   439→      allowedRootFields: ['storyArcs', 'assumptions'],
+   440→      requiredRootFields: ['storyArcs'],
+   441→      unknownRootFieldMessage: '故事线模型响应包含不允许的字段。',
+   442→    },
+   443→    parse: value => {
+   444→      const source = value as Record<string, unknown>
+   445→      assertExactKeys(source, ['storyArcs'], ['assumptions'], '故事线模型响应')
+   446→      if (!Array.isArray(source.storyArcs)) {
+   447→        throw new Error('故事线模型响应.storyArcs 必须是 JSON 数组。')
+   448→      }
+   449→      if (source.assumptions !== undefined) parseStoryArcAssumptionTextsV1(source.assumptions, true)
+   450→      return parseStoryArcCandidateRowsV1(source.storyArcs)
+   451→    },
+   452→  })
+   453→}
+   454→
+   455→function candidateIssues(
+   456→  output: StoryArcCopilotCandidate[],
+   457→  snapshot: StoryArcCopilotSnapshot,
+   458→  kind: StoryArcRequestKind,
+   459→  mutation: StoryArcMutationRequestV1 = { operation: 'create' },
+   460→): GenerationGateIssue[] {
+   461→  let parsed: StoryArcCopilotCandidate[]
+   462→  try {
+   463→    parsed = parseStoryArcCandidateDraft(JSON.stringify(output))
+   464→  } catch (error) {
+   465→    return [{
+   466→      code: 'story-arc-invalid-structure',
+   467→      message: error instanceof Error ? error.message : '故事线候选结构无效。',
+   468→    }]
+   469→  }
+   470→  const issues: GenerationGateIssue[] = []
+   471→  const existing = new Set(snapshot.existingNames)
+   472→  if (mutation.operation === 'create') {
+   473→    const duplicate = parsed.find(candidate => existing.has(normalizeIdentity(candidate.name)))
+   474→    if (duplicate) {
+   475→      issues.push({
+   476→        code: 'story-arc-duplicate-name',
+   477→        message: `当前作品已存在故事线“${duplicate.name}”。`,
+   478→      })
+   479→    }
+   480→    if (parsed.some(candidate => candidate.stages.some(stage => stage.stageId !== undefined))) {
+   481→      issues.push({ code: 'story-arc-create-stage-id', message: '新建故事线的阶段不得伪造既有 stageId。' })
+   482→    }
+   483→  } else {
+   484→    const target = snapshot.arcs?.find(arc => arc.id === mutation.targetArcId)
+   485→    if (!target) {
+   486→      issues.push({ code: 'story-arc-target-missing', message: '目标故事线不存在或不属于当前作品。' })
+   487→    } else {
+   488→      if (parsed.length !== 1) {
+   489→        issues.push({ code: 'story-arc-transform-count', message: '现有故事线变换必须且只能返回目标故事线一项。' })
+   490→      }
+   491→      const candidate = parsed[0]
+   492→      if (candidate && (
+   493→        normalizeIdentity(candidate.name) !== normalizeIdentity(target.name)
+   494→        || candidate.type !== target.type
+   495→      )) {
+   496→        issues.push({ code: 'story-arc-target-identity', message: '现有故事线变换不得改变目标名称或主/支线身份。' })
+   497→      }
+   498→      const existingStages = parseStages(target.stages)
+   499→      const validStageIds = new Set(existingStages.map(stage => stage.id))
+   500→      const referenced = parsed.flatMap(candidate => candidate.stages.flatMap(stage => stage.stageId ? [stage.stageId] : []))
+   501→      if (new Set(referenced).size !== referenced.length) {
+   502→        issues.push({ code: 'story-arc-stage-id-duplicate', message: '故事线变换不得重复引用同一 stageId。' })
+   503→      }
+   504→      const unknown = referenced.find(stageId => !validStageIds.has(stageId))
+   505→      if (unknown) {
+   506→        issues.push({ code: 'story-arc-stage-id-unknown', message: `故事线变换引用了未知 stageId：${unknown}。` })
+   507→      }
+   508→    }
+   509→  }
+   510→  if (kind === 'main' && parsed.some(candidate => candidate.type !== 'main')) {
+   511→    issues.push({ code: 'story-arc-kind-mismatch', message: '主线任务只能生成 main 类型故事线。' })
+   512→  }
+   513→  if (kind === 'sub' && parsed.some(candidate => candidate.type !== 'sub')) {
+   514→    issues.push({ code: 'story-arc-kind-mismatch', message: '支线任务只能生成 sub 类型故事线。' })
+   515→  }
+   516→  if (kind === 'mixed' && (
+   517→    !parsed.some(candidate => candidate.type === 'main')
+   518→    || !parsed.some(candidate => candidate.type === 'sub')
+   519→  )) {
+   520→    issues.push({ code: 'story-arc-kind-mismatch', message: '主线与支线混编任务必须同时包含 main 和 sub。' })
+   521→  }
+   522→  return issues
+   523→}
+   524→
+   525→interface StoryArcCreativeParseOutcomeV1 {
+   526→  status: CreativeArtifactV1['status']
+   527→  candidates: StoryArcCopilotCandidate[]
+   528→  editableText: string
+   529→  validFragments: CreativeArtifactFragmentV1[]
+   530→  rejectedFragments: CreativeArtifactFragmentV1[]
+   531→  issues: CreativeArtifactIssueV1[]
+   532→  assumptions: CreativeAssumptionV1[]
+   533→}
+   534→
+   535→function normalizeStoryArcCreativeItemV1(
+   536→  value: unknown,
+   537→  arcIndex: number,
+   538→): { value: unknown; issues: CreativeArtifactIssueV1[] } {
+   539→  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+   540→    return { value, issues: [] }
+   541→  }
+   542→  const source = value as Record<string, unknown>
+   543→  if (!Array.isArray(source.stages)) return { value, issues: [] }
+   544→
+   545→  const issues: CreativeArtifactIssueV1[] = []
+   546→  const stages = source.stages.map((stage, stageIndex) => {
+   547→    if (!stage || typeof stage !== 'object' || Array.isArray(stage)) return stage
+   548→    const normalized = { ...(stage as Record<string, unknown>) }
+   549→    if (typeof normalized.turningPoint === 'boolean') {
+   550→      const booleanValue = normalized.turningPoint
+   551→      delete normalized.turningPoint
+   552→      issues.push(creativeIssue({
+   553→        code: 'story-arc-turning-point-normalized',
+   554→        path: `$.storyArcs[${arcIndex}].stages[${stageIndex}].turningPoint`,
+   555→        message: booleanValue
+   556→          ? '模型把 turningPoint 写成布尔值；为避免猜测创作语义，已忽略该可选标记并保留阶段正文与关键事件。'
+   557→          : '模型把 turningPoint 写成 false；已按未提供可选转折描述处理。',
+   558→        severity: 'warning',
+   559→        disposition: 'advisory',
+   560→        action: 'none',
+   561→      }))
+   562→    }
+   563→
+   564→    const hasStartVolume = Object.prototype.hasOwnProperty.call(normalized, 'startVolume')
+   565→    const hasEndVolume = Object.prototype.hasOwnProperty.call(normalized, 'endVolume')
+   566→    const startVolume = normalized.startVolume
+   567→    const endVolume = normalized.endVolume
+   568→    const validRange = hasStartVolume
+   569→      && hasEndVolume
+   570→      && Number.isInteger(startVolume)
+   571→      && Number.isInteger(endVolume)
+   572→      && Number(startVolume) >= 1
+   573→      && Number(startVolume) <= 10_000
+   574→      && Number(endVolume) >= 1
+   575→      && Number(endVolume) <= 10_000
+   576→      && Number(startVolume) <= Number(endVolume)
+   577→    if ((hasStartVolume || hasEndVolume) && !validRange) {
+   578→      delete normalized.startVolume
+   579→      delete normalized.endVolume
+   580→      issues.push(creativeIssue({
+   581→        code: 'story-arc-volume-range-normalized',
+   582→        path: `$.storyArcs[${arcIndex}].stages[${stageIndex}]`,
+   583→        message: '模型提供了不完整或无效的可选卷范围；已同时忽略 startVolume/endVolume，并保留阶段正文与关键事件。',
+   584→        severity: 'warning',
+   585→        disposition: 'advisory',
+   586→        action: 'remove',
+   587→      }))
+   588→    }
+   589→    return normalized
+   590→  })
+   591→  return { value: { ...source, stages }, issues }
+   592→}
+   593→
+   594→function parseStoryArcAssumptionTextsV1(
+   595→  value: unknown,
+   596→  strict: boolean,
+   597→): { assumptions: CreativeAssumptionV1[]; issues: CreativeArtifactIssueV1[] } {
+   598→  if (value === undefined) return { assumptions: [], issues: [] }
+   599→  if (!Array.isArray(value) || value.length > 7) {
+   600→    if (strict) throw new Error('故事线模型响应.assumptions 必须是最多 7 项的字符串数组。')
+   601→    return {
+   602→      assumptions: [],
+   603→      issues: [creativeIssue({
+   604→        code: 'story-arc-assumptions-invalid',
+   605→        path: '$.assumptions',
+   606→        message: 'assumptions 必须是最多 7 项的字符串数组；已忽略损坏的假设元数据。',
+   607→        severity: 'warning',
+   608→        disposition: 'advisory',
+   609→        action: 'remove',
+   610→      })],
+   611→    }
+   612→  }
+   613→  const assumptions: CreativeAssumptionV1[] = []
+   614→  const issues: CreativeArtifactIssueV1[] = []
+   615→  const seen = new Set<string>()
+   616→  value.forEach((item, index) => {
+   617→    const text = typeof item === 'string' ? item.trim() : ''
+   618→    if (!text || text.length > 500 || seen.has(text)) {
+   619→      if (strict) throw new Error(`故事线模型响应.assumptions[${index}] 必须是唯一的非空短字符串。`)
+   620→      issues.push(creativeIssue({
+   621→        code: 'story-arc-assumption-item-invalid',
+   622→        path: `$.assumptions[${index}]`,
+   623→        message: `第 ${index + 1} 项临时假设无效，已忽略；合法故事线仍保留。`,
+   624→        severity: 'warning',
+   625→        disposition: 'advisory',
+   626→        action: 'remove',
+   627→      }))
+   628→      return
+   629→    }
+   630→    seen.add(text)
+   631→    assumptions.push({
+   632→      version: 1,
+   633→      id: `story-arc-assumption:${index + 1}`,
+   634→      text,
+   635→      derivedFrom: ['narrativeBrief:creativeFreedom'],
+   636→      confidence: 'low',
+   637→      conflictsWith: [],
+   638→      status: 'provisional',
+   639→    })
+   640→  })
+   641→  return { assumptions, issues }
+   642→}
+   643→
+   644→function creativeIssue(input: {
+   645→  code: string
+   646→  path: string
+   647→  message: string
+   648→  severity?: CreativeArtifactIssueV1['severity']
+   649→  disposition?: CreativeArtifactIssueV1['disposition']
+   650→  action?: CreativeArtifactIssueV1['suggestedAction']
+   651→  deterministic?: boolean
+   652→}): CreativeArtifactIssueV1 {
+   653→  return {
+   654→    version: 1,
+   655→    code: input.code,
+   656→    severity: input.severity ?? 'error',
+   657→    disposition: input.disposition ?? 'repairable',
+   658→    path: input.path,
+   659→    message: input.message,
+   660→    suggestedAction: input.action ?? 'repair-once',
+   661→    evidenceRefs: [],
+   662→    deterministic: input.deterministic ?? true,
+   663→  }
+   664→}
+   665→
+   666→function storyArcCreativeParseOutcomeV1(
+   667→  raw: string,
+   668→  snapshot: StoryArcCopilotSnapshot,
+   669→  kind: StoryArcRequestKind,
+   670→  mutation: StoryArcMutationRequestV1,
+   671→): StoryArcCreativeParseOutcomeV1 {
+   672→  if (!raw.trim()) {
+   673→    const empty = creativeIssue({
+   674→      code: 'story-arc-empty-response',
+   675→      path: '$',
+   676→      message: '模型没有返回故事线内容。',
+   677→    })
+   678→    return {
+   679→      status: 'manual-repair',
+   680→      candidates: [],
+   681→      editableText: '[]',
+   682→      validFragments: [],
+   683→      rejectedFragments: [],
+   684→      issues: [empty],
+   685→      assumptions: [],
+   686→    }
+   687→  }
+   688→  if (raw.length > MAX_CANDIDATE_CHARS) {
+   689→    const tooLarge = creativeIssue({
+   690→      code: 'story-arc-response-too-large',
+   691→      path: '$',
+   692→      message: `故事线响应超过 ${MAX_CANDIDATE_CHARS} 字符，不能安全持久化。`,
+   693→      disposition: 'blocking',
+   694→      action: 'replan',
+   695→    })
+   696→    return {
+   697→      status: 'blocked',
+   698→      candidates: [],
+   699→      editableText: raw.slice(0, MAX_CANDIDATE_CHARS),
+   700→      validFragments: [],
+   701→      rejectedFragments: [],
+   702→      issues: [tooLarge],
+   703→      assumptions: [],
+   704→    }
+   705→  }
+   706→  const envelope = normalizeCreativeJsonEnvelopeV1(raw)
+   707→  if (!envelope.value) {
+   708→    return {
+   709→      status: 'manual-repair',
+   710→      candidates: [],
+   711→      editableText: envelope.normalizedText,
+   712→      validFragments: [],
+   713→      rejectedFragments: [{
+   714→        version: 1,
+   715→        id: 'story-arc-response',
+   716→        path: '$',
+   717→        text: envelope.normalizedText.slice(0, 40_000),
+   718→        status: 'rejected',
+   719→        issueCodes: envelope.issues.map(issue => issue.code),
+   720→      }],
+   721→      issues: envelope.issues,
+   722→      assumptions: [],
+   723→    }
+   724→  }
+   725→
+   726→  const rootKeys = Object.keys(envelope.value)
+   727→  if (!rootKeys.includes('storyArcs') || rootKeys.some(key => key !== 'storyArcs' && key !== 'assumptions')) {
+   728→    const rootIssue = creativeIssue({
+   729→      code: 'story-arc-root-fields-invalid',
+   730→      path: '$',
+   731→      message: '故事线响应顶层必须包含 storyArcs，且只能额外包含 assumptions。',
+   732→    })
+   733→    return {
+   734→      status: 'manual-repair',
+   735→      candidates: [],
+   736→      editableText: envelope.normalizedText,
+   737→      validFragments: [],
+   738→      rejectedFragments: [{
+   739→        version: 1,
+   740→        id: 'story-arc-response',
+   741→        path: '$',
+   742→        text: envelope.normalizedText.slice(0, 40_000),
+   743→        status: 'rejected',
+   744→        issueCodes: [rootIssue.code],
+   745→      }],
+   746→      issues: [rootIssue],
+   747→      assumptions: [],
+   748→    }
+   749→  }
+   750→  if (!Array.isArray(envelope.value.storyArcs)) {
+   751→    const arrayIssue = creativeIssue({
+   752→      code: 'story-arc-list-invalid',
+   753→      path: '$.storyArcs',
+   754→      message: 'storyArcs 必须是数组。',
+   755→    })
+   756→    return {
+   757→      status: 'manual-repair',
+   758→      candidates: [],
+   759→      editableText: envelope.normalizedText,
+   760→      validFragments: [],
+   761→      rejectedFragments: [{
+   762→        version: 1,
+   763→        id: 'story-arc-list',
+   764→        path: '$.storyArcs',
+   765→        text: JSON.stringify(envelope.value.storyArcs).slice(0, 40_000),
+   766→        status: 'rejected',
+   767→        issueCodes: [arrayIssue.code],
+   768→      }],
+   769→      issues: [arrayIssue],
+   770→      assumptions: [],
+   771→    }
+   772→  }
+   773→
+   774→  const candidates: StoryArcCopilotCandidate[] = []
+   775→  const validFragments: CreativeArtifactFragmentV1[] = []
+   776→  const rejectedFragments: CreativeArtifactFragmentV1[] = []
+   777→  const issues: CreativeArtifactIssueV1[] = []
+   778→  const assumptionResult = parseStoryArcAssumptionTextsV1(envelope.value.assumptions, false)
+   779→  issues.push(...assumptionResult.issues)
+   780→  envelope.value.storyArcs.forEach((value, index) => {
+   781→    const normalized = normalizeStoryArcCreativeItemV1(value, index)
+   782→    issues.push(...normalized.issues)
+   783→    try {
+   784→      const candidate = parseStoryArcCandidateDraft(JSON.stringify([normalized.value]))[0]
+   785→      candidates.push(candidate)
+   786→      validFragments.push({
+   787→        version: 1,
+   788→        id: `story-arc:${index}`,
+   789→        path: `$.storyArcs[${index}]`,
+   790→        text: JSON.stringify(candidate, null, 2),
+   791→        status: 'valid',
+   792→        issueCodes: [],
+   793→      })
+   794→    } catch (error) {
+   795→      const itemIssue = creativeIssue({
+   796→        code: 'story-arc-item-invalid',
+   797→        path: `$.storyArcs[${index}]`,
+   798→        message: error instanceof Error ? error.message : '故事线项目结构无效。',
+   799→      })
+   800→      issues.push(itemIssue)
+   801→      rejectedFragments.push({
+   802→        version: 1,
+   803→        id: `story-arc:${index}`,
+   804→        path: itemIssue.path,
+   805→        text: JSON.stringify(normalized.value, null, 2).slice(0, 40_000),
+   806→        status: 'rejected',
+   807→        issueCodes: [itemIssue.code],
+   808→      })
+   809→    }
+   810→  })
+   811→
+   812→  const gateIssues = candidateIssues(candidates, snapshot, kind, mutation)
+   813→  issues.push(...gateIssues.map(item => creativeIssue({
+   814→    code: item.code,
+   815→    path: '$.storyArcs',
+   816→    message: item.message,
+   817→  })))
+   818→  const gatePassed = gateIssues.length === 0
+   819→  const status: CreativeArtifactV1['status'] = issues.length === 0
+   820→    ? 'ready'
+   821→    : candidates.length > 0 && gatePassed
+   822→      ? 'usable-with-warnings'
+   823→      : 'manual-repair'
+   824→  return {
+   825→    status,
+   826→    candidates,
+   827→    editableText: candidates.length ? JSON.stringify(candidates, null, 2) : envelope.normalizedText,
+   828→    validFragments,
+   829→    rejectedFragments,
+   830→    issues,
+   831→    assumptions: assumptionResult.assumptions,
+   832→  }
+   833→}
+   834→
+   835→/**
+   836→ * Re-gates an author-edited bare-array draft without making another model call.
+   837→ * The original call/repair evidence stays immutable; only the editable view and
+   838→ * its current deterministic validation result are refreshed.
+   839→ */
+   840→export function revalidateStoryArcCreativeDraftV1(input: {
+   841→  draft: string
+   842→  snapshot: StoryArcCopilotSnapshot
+   843→  kind: StoryArcRequestKind
+   844→  mutation?: StoryArcMutationRequestV1
+   845→  previousArtifact: CreativeArtifactV1
+   846→}): CreativeArtifactV1 {
+   847→  let status: CreativeArtifactV1['status'] = 'ready'
+   848→  let validFragments: CreativeArtifactFragmentV1[] = []
+   849→  let rejectedFragments: CreativeArtifactFragmentV1[] = []
+   850→  let issues: CreativeArtifactIssueV1[] = []
+   851→
+   852→  if (input.draft.length > MAX_CANDIDATE_CHARS) {
+   853→    status = 'blocked'
+   854→    issues = [creativeIssue({
+   855→      code: 'story-arc-author-draft-too-large',
+   856→      path: '$',
+   857→      message: `作者修订稿超过 ${MAX_CANDIDATE_CHARS} 字符，不能安全采纳。`,
+   858→      disposition: 'blocking',
+   859→      action: 'edit',
+   860→    })]
+   861→    rejectedFragments = [{
+   862→      version: 1,
+   863→      id: 'story-arc-author-draft',
+   864→      path: '$',
+   865→      text: input.draft.slice(0, 40_000),
+   866→      status: 'rejected',
+   867→      issueCodes: issues.map(issue => issue.code),
+   868→    }]
+   869→  } else {
+   870→    try {
+   871→      const candidates = parseStoryArcCandidateDraft(input.draft)
+   872→      const gateIssues = candidateIssues(
+   873→        candidates,
+   874→        input.snapshot,
+   875→        input.kind,
+   876→        input.mutation ?? { operation: 'create' },
+   877→      )
+   878→      validFragments = candidates.map((candidate, index) => ({
+   879→        version: 1,
+   880→        id: `story-arc:${index}`,
+   881→        path: `$[${index}]`,
+   882→        text: JSON.stringify(candidate, null, 2),
+   883→        status: 'valid',
+   884→        issueCodes: [],
+   885→      }))
+   886→      if (gateIssues.length) {
+   887→        status = 'blocked'
+   888→        issues = gateIssues.map(item => creativeIssue({
+   889→          code: item.code,
+   890→          path: '$',
+   891→          message: item.message,
+   892→          disposition: 'blocking',
+   893→          action: 'edit',
+   894→        }))
+   895→      }
+   896→    } catch (error) {
+   897→      status = 'manual-repair'
+   898→      issues = [creativeIssue({
+   899→        code: 'story-arc-author-draft-invalid',
+   900→        path: '$',
+   901→        message: error instanceof Error ? error.message : '作者修订稿结构无效。',
+   902→        action: 'edit',
+   903→      })]
+   904→      rejectedFragments = [{
+   905→        version: 1,
+   906→        id: 'story-arc-author-draft',
+   907→        path: '$',
+   908→        text: input.draft.slice(0, 40_000),
+   909→        status: 'rejected',
+   910→        issueCodes: issues.map(issue => issue.code),
+   911→      }]
+   912→    }
+   913→  }
+   914→
+   915→  return parseCreativeArtifactV1({
+   916→    ...input.previousArtifact,
+   917→    status,
+   918→    editableText: input.draft.slice(0, MAX_CANDIDATE_CHARS),
+   919→    validFragments,
+   920→    rejectedFragments,
+   921→    issues,
+   922→  })
+   923→}
+   924→
+   925→function buildStoryArcRepairMessagesV1(input: {
+   926→  raw: string
+   927→  issues: readonly CreativeArtifactIssueV1[]
+   928→  kind: StoryArcRequestKind
+   929→  mutation: StoryArcMutationRequestV1
+   930→  validStageIds: readonly string[]
+   931→}): ChatMessage[] {
+   932→  const kindRule = input.kind === 'main'
+   933→    ? 'storyArcs 只能有一项且 type=main。'
+   934→    : input.kind === 'sub'
+   935→      ? 'storyArcs 只能有一项且 type=sub。'
+   936→      : 'storyArcs 必须同时包含至少一项 main 和一项 sub。'
+   937→  return [{
+   938→    role: 'system',
+   939→    content: [
+   940→      '你是结构修复器，只修下面列出的确定性问题，不重新创作故事。',
+   941→      '保留原输出中全部合法名称、描述、事件顺序和事实，不引入新人物、新设定或新因果。',
+   942→      kindRule,
+   943→      input.mutation.operation === 'create'
+   944→        ? '这是新建任务，所有阶段必须省略 stageId。'
+   945→        : `这是 ${input.mutation.operation} 任务；保留或修改的阶段只能使用这些 stageId：${input.validStageIds.join('、')}；新增阶段省略 stageId。`,
+   946→      '只返回严格 JSON 对象，顶层必须有 storyArcs，可保留合法的 assumptions 字符串数组。',
+   947→      '每项严格为 name/type/description/stages；每个阶段必须有 title/description/keyEvents，',
+   948→      'turningPoint/startVolume/endVolume 没有明确内容时直接省略，禁止 null 或占位值。',
+   949→      '不要解释，不要 Markdown。',
+   950→    ].join('\n'),
+   951→  }, {
+   952→    role: 'user',
+   953→    content: [
+   954→      '【只允许修复的问题】',
+   955→      JSON.stringify(input.issues.map(issue => ({
+   956→        code: issue.code,
+   957→        path: issue.path,
+   958→      }))),
+   959→      '【上一次原始输出】',
+   960→      input.raw,
+   961→    ].join('\n'),
+   962→  }]
+   963→}
+   964→
+   965→function storyArcCallEvidenceV1(input: {
+   966→  callIndex: 1 | 2
+   967→  purpose: CreativeCallEvidenceV1['purpose']
+   968→  messages: readonly ChatMessage[]
+   969→  modelIdentity: PreparedStoryArcCopilot['modelIdentity']
+   970→  result?: StoryArcRawModelResultV1
+   971→  failed?: boolean
+   972→}): Promise<CreativeCallEvidenceV1> {
+   973→  return (async () => {
+   974→    const estimatedInput = input.messages.reduce((sum, message) => sum + estimateTokens(message.content), 0)
+   975→    const estimatedOutput = input.result ? estimateTokens(input.result.output) : null
+   976→    const usage = input.result?.usage
+   977→    const inputTokens = usage?.inputTokens ?? (input.result ? estimatedInput : null)
+   978→    const outputTokens = usage?.outputTokens ?? estimatedOutput
+   979→    return {
+   980→      version: 1,
+   981→      callIndex: input.callIndex,
+   982→      purpose: input.purpose,
+   983→      status: input.failed ? 'failed' : 'succeeded',
+   984→      provider: input.modelIdentity.provider,
+   985→      model: input.modelIdentity.model,
+   986→      usageSource: usage ? 'provider' : input.result ? 'estimated' : 'unknown',
+   987→      inputTokens,
+   988→      outputTokens,
+   989→      totalTokens: usage?.totalTokens ?? (
+   990→        estimatedOutput === null ? null : estimatedInput + estimatedOutput
+   991→      ),
+   992→      latencyMs: input.result?.durationMs ?? null,
+   993→      estimatedCostUsd: inputTokens == null || outputTokens == null
+   994→        ? null
+   995→        : computeKnownCostUsd(input.modelIdentity.model, inputTokens, outputTokens),
+   996→      outputHash: input.result ? await hashCanonicalValue(input.result.output) : null,
+   997→    }
+   998→  })()
+   999→}
+  1000→
+  1001→export async function runStoryArcCreativeReliabilityV1(input: {
+  1002→  prepared: PreparedStoryArcCopilot
+  1003→  budget: AgentTeamBudgetTracker
+  1004→  qualityMode: CreativeQualityModeV1
+  1005→  validate?: (candidates: StoryArcCopilotCandidate[]) => Promise<GenerationGateIssue[]> | GenerationGateIssue[]
+  1006→}): Promise<StoryArcCreativeRunResultV1> {
+  1007→  const policy = resolveCreativeQualityPolicyV1(input.qualityMode)
+  1008→  const maxOutputTokens = input.prepared.input.generationOverrides?.maxTokens ?? 10_000
+  1009→  const firstMessages = input.prepared.prepared.messages
+  1010→  const firstReservation = input.budget.reserveCall({
+  1011→    label: '故事线编排 Skill',
+  1012→    messages: firstMessages,
+  1013→    maxOutputTokens,
+  1014→  })
+  1015→  let first: StoryArcRawModelResultV1
+  1016→  try {
+  1017→    first = await input.prepared.runRaw(firstMessages)
+  1018→    input.budget.settleCall(firstReservation, first.output)
+  1019→  } catch (error) {
+  1020→    input.budget.settleFailedCall(firstReservation)
+  1021→    throw error
+  1022→  }
+  1023→  const calls: CreativeCallEvidenceV1[] = [await storyArcCallEvidenceV1({
+  1024→    callIndex: 1,
+  1025→    purpose: 'generate',
+  1026→    messages: firstMessages,
+  1027→    modelIdentity: input.prepared.modelIdentity,
+  1028→    result: first,
+  1029→  })]
+  1030→  let outcome = storyArcCreativeParseOutcomeV1(
+  1031→    first.output,
+  1032→    input.prepared.snapshot,
+  1033→    input.prepared.kind,
+  1034→    input.prepared.mutation,
+  1035→  )
+  1036→  if (outcome.candidates.length > 0 && input.validate) {
+  1037→    const hardIssues = await input.validate(outcome.candidates)
+  1038→    if (hardIssues.length) {
+  1039→      outcome = {
+  1040→        ...outcome,
+  1041→        status: 'blocked',
+  1042→        issues: [...outcome.issues, ...hardIssues.map(item => creativeIssue({
+  1043→          code: item.code,
+  1044→          path: '$.storyArcs',
+  1045→          message: item.message,
+  1046→          disposition: 'blocking',
+  1047→          action: 'repair-once',
+  1048→        }))],
+  1049→      }
+  1050→    }
+  1051→  }
+  1052→
+  1053→  const repairable = outcome.issues.some(issue => issue.suggestedAction === 'repair-once')
+  1054→  let repair: CreativeArtifactV1['repair'] = null
+  1055→  if (policy.allowAutomaticRepair && repairable) {
+  1056→    const repairIssues = outcome.issues.filter(issue => issue.suggestedAction === 'repair-once')
+  1057→    const repairTargetIssueCodes = [...new Set(repairIssues.map(issue => issue.code))]
+  1058→    const repairTarget = input.prepared.snapshot.arcs
+  1059→      ?.find(arc => arc.id === input.prepared.mutation.targetArcId)
+  1060→    const repairMessages = buildStoryArcRepairMessagesV1({
+  1061→      raw: first.output,
+  1062→      issues: repairIssues,
+  1063→      kind: input.prepared.kind,
+  1064→      mutation: input.prepared.mutation,
+  1065→      validStageIds: repairTarget ? parseStages(repairTarget.stages).map(stage => stage.id) : [],
+  1066→    })
+  1067→    const reservation = input.budget.reserveCall({
+  1068→      label: '故事线编排 Skill（定向修复）',
+  1069→      messages: repairMessages,
+  1070→      maxOutputTokens,
+  1071→    })
+  1072→    let repaired: StoryArcRawModelResultV1 | null = null
+  1073→    try {
+  1074→      repaired = await input.prepared.runRaw(repairMessages)
+  1075→      input.budget.settleCall(reservation, repaired.output)
+  1076→      calls.push(await storyArcCallEvidenceV1({
+  1077→        callIndex: 2,
+  1078→        purpose: 'repair',
+  1079→        messages: repairMessages,
+  1080→        modelIdentity: input.prepared.modelIdentity,
+  1081→        result: repaired,
+  1082→      }))
+  1083→      const next = storyArcCreativeParseOutcomeV1(
+  1084→        repaired.output,
+  1085→        input.prepared.snapshot,
+  1086→        input.prepared.kind,
+  1087→        input.prepared.mutation,
+  1088→      )
+  1089→      if (next.candidates.length > 0 && input.validate) {
+  1090→        const hardIssues = await input.validate(next.candidates)
+  1091→        if (hardIssues.length) {
+  1092→          next.status = 'blocked'
+  1093→          next.issues.push(...hardIssues.map(item => creativeIssue({
+  1094→            code: item.code,
+  1095→            path: '$.storyArcs',
+  1096→            message: item.message,
+  1097→            disposition: 'blocking',
+  1098→            action: 'replan',
+  1099→          })))
+  1100→        }
+  1101→      }
+  1102→      outcome = next
+  1103→    } catch {
+  1104→      input.budget.settleFailedCall(reservation)
+  1105→      calls.push(await storyArcCallEvidenceV1({
+  1106→        callIndex: 2,
+  1107→        purpose: 'repair',
+  1108→        messages: repairMessages,
+  1109→        modelIdentity: input.prepared.modelIdentity,
+  1110→        failed: true,
+  1111→      }))
+  1112→      const wasBlocked = outcome.status === 'blocked'
+  1113→      if (!wasBlocked) outcome.status = 'manual-repair'
+  1114→      outcome.issues.push(creativeIssue({
+  1115→        code: 'story-arc-repair-provider-failed',
+  1116→        path: '$',
+  1117→        message: '唯一一次定向修复调用失败；已停止自动调用并保留首次产物。',
+  1118→        disposition: wasBlocked ? 'blocking' : 'repairable',
+  1119→        action: 'edit',
+  1120→        deterministic: false,
+  1121→      }))
+  1122→    }
+  1123→    repair = {
+  1124→      version: 1,
+  1125→      sourceTextHash: await hashCanonicalValue(first.output),
+  1126→      targetIssueCodes: repairTargetIssueCodes,
+  1127→      callIndex: 2,
+  1128→      result: repaired == null
+  1129→        ? 'failed'
+  1130→        : outcome.status === 'ready'
+  1131→          ? 'repaired'
+  1132→          : outcome.candidates.length > 0
+  1133→            ? 'partial'
+  1134→            : 'failed',
+  1135→    }
+  1136→  }
+  1137→
+  1138→  const artifact = parseCreativeArtifactV1({
+  1139→    version: 1,
+  1140→    policyVersion: 'creative-reliability-v1',
+  1141→    status: outcome.status,
+  1142→    qualityMode: input.qualityMode,
+  1143→    originalText: first.output.slice(0, MAX_CANDIDATE_CHARS),
+  1144→    editableText: outcome.editableText,
+  1145→    validFragments: outcome.validFragments,
+  1146→    rejectedFragments: outcome.rejectedFragments,
+  1147→    issues: outcome.issues,
+  1148→    assumptions: mergeProvisionalAssumptionsV1(
+  1149→      input.prepared.input.narrativeBrief.assumptions,
+  1150→      outcome.assumptions,
+  1151→    ),
+  1152→    canonEvidenceRefs: [],
+  1153→    callEvidence: calls,
+  1154→    repair,
+  1155→  })
+  1156→  return {
+  1157→    output: outcome.candidates,
+  1158→    draft: outcome.editableText,
+  1159→    artifact,
+  1160→  }
+  1161→}
+  1162→
+  1163→function buildStoryArcMessages(input: StoryArcCopilotInput): ChatMessage[] {
+  1164→  const target = input.mutation.operation === 'create'
+  1165→    ? undefined
+  1166→    : input.snapshot.arcs?.find(arc => arc.id === input.mutation.targetArcId)
+  1167→  const operationInstruction = input.mutation.operation === 'create'
+  1168→    ? '本轮创建一条新的故事线候选。'
+  1169→    : input.mutation.operation === 'expand'
+  1170→      ? '本轮扩写目标故事线：保留已有身份、事实和仍保留阶段的 stageId，在此基础上增加有意义的阶段细节、事件或因果连接。'
+  1171→      : input.mutation.operation === 'polish'
+  1172→        ? '本轮润色目标故事线：保留已有身份、事实、阶段结构和 stageId，只优化表达、逻辑与衔接。'
+  1173→        : input.mutation.operation === 'rewrite'
+  1174→          ? '本轮重写目标故事线：保持名称、主/支线身份和已有 stageId 的引用合法性，可以重做内容结构；删除既有阶段时直接省略该 stageId。'
+  1175→          : '本轮重规划目标故事线：保持名称和主/支线身份，只调整尚未被已写事实锁定的规划；已有阶段用原 stageId，新阶段省略 stageId。'
+  1176→  const kindInstruction = input.kind === 'main'
+  1177→    ? '只规划且只输出 1 条故事线；type 必须严格为 main，禁止输出 sub。'
+  1178→    : input.kind === 'sub'
+  1179→      ? '只规划且只输出 1 条故事线；type 必须严格为 sub，并说明它如何与现有主线交织，禁止输出 main。'
+  1180→      : '同时规划至少一条 main 主线和一条 sub 支线，并明确它们的交汇关系。'
+  1181→  const supplemental = input.supplementalContext.trim()
+  1182→    ? `\n\n【本轮已验证上游候选（尚未采纳，不属于 Canon）】\n${input.supplementalContext.trim()}`
+  1183→    : ''
+  1184→  return [{
+  1185→    role: 'system' as const,
+  1186→    content: `你是 StoryForge 大纲 Agent，当前执行 story-arcs Skill。你的职责是把作者已确认的世界、
+  1187→故事核心、角色和既有规划编排为可确认的主线/支线候选，不改写上游事实，也不把规划中的未来信息
+  1188→伪装成角色当前已知信息。
+  1189→
+  1190→硬性要求：
+  1191→1. ${kindInstruction}
+  1192→2. storyCore.mainPlot/subPlots 是作者意图摘要，本轮输出是其 1:N 可执行投影。只能新增候选，绝不能反向改写故事核心，也不能把一条意图强制覆盖成一条同名故事线。
+  1193→3. 默认生成紧凑但完整的 3-5 个因果递进阶段；每阶段包含标题、一到两句描述和 1-3 个关键事件，每个事件用一句话表达。不要为了填满上限重复、拆碎或扩写同一事件。
+  1194→4. 每条故事线顶层只能有 name/type/description/stages 四个字段。turningPoint、startVolume、endVolume 只能放在 stages 数组内的阶段对象上，绝不能放在故事线顶层；只有确有卷级依据时才同时填写 startVolume/endVolume，均为从 1 开始的整数。
+  1195→5. 已有设定是硬约束；不得改变既定时限、能力、代价、因果或实体身份，也不得为未命名人物擅自命名。设定缺失时只做不与现有事实冲突的候选补全，不声称它已经成为 Canon。
+  1196→6. 避免复制已有故事线；支线必须有独立目标，也要说明与主线的因果交汇。
+  1197→6.1 作品名“${input.projectName}”只可作为低权重灵感，不是主题命令、概念释义题或既定 Canon；不得为了呼应标题牺牲行动、冲突、选择和状态变化。
+  1198→6.2 ${operationInstruction}
+  1199→6.3 变换既有故事线时，每个保留或修改的阶段必须逐字回传原 stageId；新增阶段必须省略 stageId，禁止编造 ID。新建故事线时所有阶段都必须省略 stageId。
+  1200→6.4 新建故事线或新增阶段时，description 与 keyEvents 必须交代：触发它的正式证据或作者要求、关联角色、开始时点，以及它与既有主线/支线的因果关系。正式上下文没有确认的信息只能列入 assumptions，不得伪造为 Canon。
+  1201→7. 只输出一个严格 JSON 对象，不输出 Markdown、解释或额外字段。顶层必须有 storyArcs，可选 assumptions；最小结构严格使用：
+  1202→{"storyArcs":[{"name":"名称","type":"main|sub","description":"整体描述","stages":[{"title":"阶段标题","description":"阶段描述","keyEvents":["事件"]}]}]}
+  1203→8. 阶段对象内的 turningPoint、startVolume、endVolume 都是可选字段；turningPoint 如填写必须是描述转折的字符串，绝不能写 true/false；startVolume/endVolume 只有在两者都有明确卷级依据时才成对填写整数。没有明确依据就省略，不要输出占位值。
+  1204→9. 若你为“开放创作空间”补充了会被下游依赖、但正式上下文没有确认的事实，可增加 assumptions 字符串数组，最多 7 项；不要把故事线本身重复抄入 assumptions。`,
+  1205→  }, {
+  1206→    role: 'user' as const,
+  1207→    content: [
+  1208→      input.inputGuidance,
+  1209→      `【低权重灵感：作品名】\n${input.projectName}`,
+  1210→      ...(target ? [`【目标故事线（Gateway 冻结版本）】\n${JSON.stringify({
+  1211→        id: target.id,
+  1212→        name: target.name,
+  1213→        type: target.type,
+  1214→        description: target.description,
+  1215→        stages: parseStages(target.stages).map(stage => ({
+  1216→          stageId: stage.id,
+  1217→          title: stage.title,
+  1218→          description: stage.description,
+  1219→          keyEvents: stage.keyEvents,
+  1220→          ...(stage.turningPoint ? { turningPoint: stage.turningPoint } : {}),
+  1221→          ...(stage.startVolume == null ? {} : { startVolume: stage.startVolume, endVolume: stage.endVolume }),
+  1222→        })),
+  1223→      }, null, 2)}`] : []),
+  1224→      `【作者要求】\n${input.authorRequest}${supplemental}`,
+  1225→      formatNarrativeBriefForPromptV1(input.narrativeBrief),
+  1226→      `【正式上下文】\n${input.assembled.text || '（当前没有已填写的正式上游内容）'}`,
+  1227→    ].join('\n\n'),
+  1228→  }]
+  1229→}
+  1230→
+  1231→function toStoredStages(
+  1232→  candidate: StoryArcCopilotCandidate,
+  1233→  target?: NonNullable<StoryArcCopilotSnapshot['arcs']>[number],
+  1234→): StoryStage[] {
+  1235→  const targetIds = new Set(target ? parseStages(target.stages).map(stage => stage.id) : [])
+  1236→  return candidate.stages.map(stage => ({
+  1237→    id: stage.stageId && targetIds.has(stage.stageId) ? stage.stageId : nanoid(8),
+  1238→    title: stage.title,
+  1239→    description: stage.description,
+  1240→    keyEvents: [...stage.keyEvents],
+  1241→    ...(stage.turningPoint ? { turningPoint: stage.turningPoint } : {}),
+  1242→    ...(stage.startVolume === undefined
+  1243→      ? {}
+  1244→      : { startVolume: stage.startVolume, endVolume: stage.endVolume }),
+  1245→  }))
+  1246→}
+  1247→
+  1248→async function adoptCandidates(input: {
+  1249→  projectId: number
+  1250→  scope?: WorkspaceScope
+  1251→  worldGroupId: number | null
+  1252→  snapshot: StoryArcCopilotSnapshot
+  1253→  candidates: StoryArcCopilotCandidate[]
+  1254→  mutation?: StoryArcMutationRequestV1
+  1255→  producerRunId?: number
+  1256→  producerCandidateHash?: string
+  1257→}): Promise<{ writtenCount: number; ids: number[] }> {
+  1258→  const scope = await resolveScope({ projectId: input.projectId, scope: input.scope })
+  1259→  const mutation = input.mutation ?? { operation: 'create' }
+  1260→  return db.transaction('rw', scopeTransactionTables(
+  1261→    db.storyArcs,
+  1262→    db.storyCores,
+  1263→    db.storylineProgress,
+  1264→    db.storylineCrossings,
+  1265→    db.agentRuns,
+  1266→  ), async () => {
+  1267→    const current = await readSnapshot(input.projectId, scope)
+  1268→    if (current.serialized !== input.snapshot.serialized) throw new StoryArcCopilotStaleError()
+  1269→    const issues = candidateIssues(input.candidates, current, 'mixed', mutation)
+  1270→      .filter(issue => issue.code !== 'story-arc-kind-mismatch')
+  1271→    if (issues.length) throw new Error(issues.map(issue => issue.message).join('；'))
+  1272→    const projectionMetadata = storyArcIntentProjectionMetadataV1({
+  1273→      intent: input.snapshot.storyIntent,
+  1274→      producerRunId: input.producerRunId,
+  1275→      producerCandidateHash: input.producerCandidateHash,
+  1276→    })
+  1277→    if (mutation.operation !== 'create') {
+  1278→      const target = current.arcs?.find(arc => arc.id === mutation.targetArcId)
+  1279→      const candidate = input.candidates[0]
+  1280→      if (!target?.id || !candidate) throw new StoryArcCopilotStaleError()
+  1281→      const storedStages = toStoredStages(candidate, target)
+  1282→      const result = await adopt({
+  1283→        projectId: input.projectId,
+  1284→        scope,
+  1285→        worldGroupId: input.worldGroupId,
+  1286→        target: 'storyArcs',
+  1287→        recordId: target.id,
+  1288→        mode: 'replace',
+  1289→        data: {
+  1290→          name: candidate.name,
+  1291→          type: candidate.type,
+  1292→          description: candidate.description,
+  1293→          stages: stringifyStages(storedStages),
+  1294→          ...projectionMetadata,
+  1295→        },
+  1296→      })
+  1297→      if (
+  1298→        result.written.length !== 1
+  1299→        || result.unknown.length
+  1300→        || result.typeErrors.length
+  1301→        || result.fkErrors.length
+  1302→        || result.skipped.length
+  1303→      ) throw new Error('故事线变换候选未能原子更新目标记录，已回滚。')
+  1304→      await updateStoryArcStagesLifecycle({
+  1305→        arcId: target.id,
+  1306→        stages: stringifyStages(storedStages),
+  1307→        validStageIds: storedStages.map(stage => stage.id),
+  1308→      })
+  1309→      return { writtenCount: 1, ids: [target.id] }
+  1310→    }
+  1311→    const result = await adopt({
+  1312→      projectId: input.projectId,
+  1313→      scope,
+  1314→      worldGroupId: input.worldGroupId,
+  1315→      target: 'storyArcs',
+  1316→      mode: 'add-many',
+  1317→      data: input.candidates.map(candidate => ({
+  1318→        name: candidate.name,
+  1319→        type: candidate.type,
+  1320→        description: candidate.description,
+  1321→        stages: stringifyStages(toStoredStages(candidate)),
+  1322→        ...projectionMetadata,
+  1323→      })),
+  1324→    })
+  1325→    if (
+  1326→      result.written.length !== input.candidates.length
+  1327→      || result.unknown.length
+  1328→      || result.typeErrors.length
+  1329→      || result.fkErrors.length
+  1330→      || result.skipped.length
+  1331→    ) throw new Error(`故事线候选只写入 ${result.written.length}/${input.candidates.length} 项，已回滚。`)
+  1332→    return { writtenCount: result.written.length, ids: result.written.map(row => row.id) }
+  1333→  })
+  1334→}
+  1335→
+  1336→export async function adoptRestoredStoryArcCandidate(input: {
+  1337→  projectId: number
+  1338→  scope?: WorkspaceScope
+  1339→  worldGroupId: number | null
+  1340→  snapshot: StoryArcCopilotSnapshot
+  1341→  draft: string
+  1342→  producerRunId?: number
+  1343→  producerCandidateHash?: string
+  1344→  mutation?: StoryArcMutationRequestV1
+  1345→}): Promise<{ writtenCount: number; ids: number[] }> {
+  1346→  return adoptCandidates({
+  1347→    ...input,
+  1348→    candidates: parseStoryArcCandidateDraft(input.draft),
+  1349→  })
+  1350→}
+  1351→
+  1352→export function storyArcCandidateMatchesRowV1(
+  1353→  candidate: StoryArcCopilotCandidate,
+  1354→  row: StoryArc,
+  1355→): boolean {
+  1356→  if (
+  1357→    normalizeIdentity(candidate.name) !== normalizeIdentity(row.name)
+  1358→    || candidate.type !== row.type
+  1359→    || candidate.description !== (row.description ?? '')
+  1360→  ) return false
+  1361→  const stages = parseStages(row.stages)
+  1362→  if (stages.length !== candidate.stages.length) return false
+  1363→  return candidate.stages.every((expected, index) => {
+  1364→    const actual = stages[index]
+  1365→    return actual != null
+  1366→      && (expected.stageId === undefined || expected.stageId === actual.id)
+  1367→      && expected.title === actual.title
+  1368→      && expected.description === actual.description
+  1369→      && JSON.stringify(expected.keyEvents) === JSON.stringify(actual.keyEvents)
+  1370→      && (expected.turningPoint ?? '') === (actual.turningPoint ?? '')
+  1371→      && (expected.startVolume ?? null) === (actual.startVolume ?? null)
+  1372→      && (expected.endVolume ?? null) === (actual.endVolume ?? null)
+  1373→  })
+  1374→}
+  1375→
+  1376→export async function prepareStoryArcCopilot(
+  1377→  input: {
+  1378→    projectId: number
+  1379→    scope?: WorkspaceScope
+  1380→    worldGroupId: number | null
+  1381→    authorRequest: string
+  1382→    skillId?: AgentSkillId
+  1383→    supplementalContext?: string
+  1384→    routingCategory?: string
+  1385→    contextProfile?: AgentContextProfile
+  1386→    configOverride?: AIConfig
+  1387→    generationOverrides?: { temperature?: number; maxTokens?: number }
+  1388→    contextCompressionRuntime?: AgentContextCompressionRuntimeV1
+  1389→    inheritedAssumptions?: readonly CreativeAssumptionV1[]
+  1390→    mutationRequest?: StoryArcMutationRequestV1
+  1391→    signal?: AbortSignal
+  1392→  },
+  1393→  dependencies: StoryArcCopilotDependencies = {},
+  1394→): Promise<PreparedStoryArcCopilot> {
+  1395→  const request = assertAuthorRequest(input.authorRequest)
+  1396→  const skill = resolveAgentSkillV1('outline', input.skillId ?? 'outline.story-arcs')
+  1397→  if (skill.executionMode !== 'story-arcs') throw new Error('故事线 Copilot 只接受 outline.story-arcs Skill。')
+  1398→  const project = await db.projects.get(input.projectId)
+  1399→  if (!project) throw new Error('项目不存在。')
+  1400→  if (project.enableMultiWorld && input.worldGroupId == null) {
+  1401→    throw new Error('多世界项目必须先选择一个世界，才能生成故事线。')
+  1402→  }
+  1403→  const worldGroupId = project.enableMultiWorld ? input.worldGroupId : null
+  1404→  const readScope = input.scope ?? await resolveReadScopeLike(input.projectId)
+  1405→  const scope = readScope
+  1406→  const work = await db.works.get(scope.workId)
+  1407→  if (!work || work.projectId !== input.projectId || work.worldId !== scope.worldId) {
+  1408→    throw new Error('当前 Work 不存在或不属于请求作用域。')
+  1409→  }
+  1410→  const before = await readSnapshot(input.projectId, scope)
+  1411→  const mutation = parseStoryArcMutationRequestV1(input.mutationRequest ?? { operation: 'create' })
+  1412→  const targetArc = mutation.operation === 'create'
+  1413→    ? undefined
+  1414→    : before.arcs?.find(arc => arc.id === mutation.targetArcId)
+  1415→  if (mutation.operation !== 'create' && !targetArc) {
+  1416→    throw new Error('目标故事线不存在或不属于当前作品。')
+  1417→  }
+  1418→  const routingCategory = input.routingCategory ?? 'agent.outline.story-arcs'
+  1419→  const config = input.configOverride ?? resolveRequestConfig(
+  1420→    useAIConfigStore.getState().config,
+  1421→    { category: routingCategory },
+  1422→  ).config
+  1423→  const contextProfile = input.contextProfile ?? 'balanced'
+  1424→  const contextPolicy = resolveAgentContextPolicy(skill.contextTaskKind, contextProfile)
+  1425→  const compression = input.contextCompressionRuntime
+  1426→    ? createAgentContextCompressionSessionV1({
+  1427→        policy: skill.contextCompression,
+  1428→        config,
+  1429→        projectId: input.projectId,
+  1430→        authorRequest: request,
+  1431→        routingCategory,
+  1432→        signal: input.signal,
+  1433→        runtime: input.contextCompressionRuntime,
+  1434→      })
+  1435→    : undefined
+  1436→  const gatewayRequired = isContextGatewayRequiredForWriteTargetV1(skill, 'storyArcs.name')
+  1437→  if (gatewayRequired && !scope) {
+  1438→    throw new Error('故事线 Gateway required 写入需要完整的当前 WorkspaceScope。')
+  1439→  }
+  1440→  const mandatoryIntentResourceKeys = before.storyIntent.ragDocumentId
+  1441→    ? STORY_INTENT_FIELDS_V1
+  1442→        .filter(field => before.storyIntent.values[field].trim())
+  1443→        .map(field => `story-core-field:${before.storyIntent.ragDocumentId}:field:${field}`)
+  1444→    : []
+  1445→  const mandatoryTargetResourceKeys = targetArc?.ragDocumentId
+  1446→    ? [`story-arc:${targetArc.ragDocumentId}`]
+  1447→    : []
+  1448→  const mandatoryTargetFieldResourceKeys = targetArc?.ragDocumentId
+  1449→    ? ['name', 'type', 'description', 'stages']
+  1450→        .map(field => `story-arc:${targetArc.ragDocumentId}:field:${field}`)
+  1451→    : []
+  1452→  const mandatoryTargetProgressResourceKeys = targetArc
+  1453→    ? (before.progress ?? [])
+  1454→        .filter(row => row.arcId === targetArc.id && row.ragDocumentId)
+  1455→        .map(row => `storyline-progress:${row.ragDocumentId}`)
+  1456→    : []
+  1457→  const mandatoryTargetCrossingResourceKeys = targetArc
+  1458→    ? (before.crossings ?? [])
+  1459→        .filter(row => (row.arcIdA === targetArc.id || row.arcIdB === targetArc.id) && row.ragDocumentId)
+  1460→        .map(row => `storyline-crossing:${row.ragDocumentId}`)
+  1461→    : []
+  1462→  if (gatewayRequired && targetArc && mandatoryTargetResourceKeys.length === 0) {
+  1463→    throw new Error('目标故事线缺少稳定资源身份，不能启动变换候选。')
+  1464→  }
+  1465→  const mandatoryResourceKeys = [
+  1466→    ...mandatoryIntentResourceKeys,
+  1467→    ...mandatoryTargetResourceKeys,
+  1468→    ...mandatoryTargetFieldResourceKeys,
+  1469→    ...mandatoryTargetProgressResourceKeys,
+  1470→    ...mandatoryTargetCrossingResourceKeys,
+  1471→  ]
+  1472→  const contextGatewayExecution = gatewayRequired
+  1473→    ? await executeContextGatewayV1({
+  1474→        skill,
+  1475→        scope: scope!,
+  1476→        worldGroupId,
+  1477→        budgetTokens: Math.min(contextPolicy.maxInputTokens, skill.contextGateway!.maxRetrievedTokens),
+  1478→        query: `把故事意图投影为可执行故事线，不得反向覆盖故事核心。\n${request}`,
+  1479→        ...(mandatoryResourceKeys.length ? {
+  1480→          mandatoryResourceKeys,
+  1481→          mandatoryFullResourceKeys: [
+  1482→            ...mandatoryTargetResourceKeys,
+  1483→            ...mandatoryTargetProgressResourceKeys,
+  1484→            ...mandatoryTargetCrossingResourceKeys,
+  1485→          ],
+  1486→          mandatoryOriginalResourceKeys: [
+  1487→            ...mandatoryIntentResourceKeys,
+  1488→            ...mandatoryTargetFieldResourceKeys,
+  1489→          ],
+  1490→          targetResourceKeys: mandatoryTargetResourceKeys.length
+  1491→            ? mandatoryTargetResourceKeys
+  1492→            : mandatoryIntentResourceKeys,
+  1493→        } : {}),
+  1494→        additionalReadsEnabled: false,
+  1495→        signal: input.signal,
+  1496→      })
+  1497→    : undefined
+  1498→  const assembled = contextGatewayExecution
+  1499→    ? assembleContextGatewayPacketV1(contextGatewayExecution, contextPolicy.maxInputTokens)
+  1500→    : await assembleContext({
+  1501→        projectId: input.projectId,
+  1502→        scope,
+  1503→        worldGroupId,
+  1504→        provider: config.provider,
+  1505→        model: config.model,
+  1506→        sourceKeys: [...skill.contextSourceKeys],
+  1507→        inputBudgetMaxTokens: contextPolicy.maxInputTokens,
+  1508→        sourceBudgetScale: contextPolicy.sourceBudgetScale,
+  1509→        sourceTransformer: compression?.sourceTransformer,
+  1510→      })
+  1511→  const snapshot = await readSnapshot(input.projectId, scope)
+  1512→  if (before.serialized !== snapshot.serialized) throw new StoryArcCopilotStaleError()
+  1513→  const inputState = contextGatewayExecution
+  1514→    ? projectContextGatewayInputStateV1(skill, contextGatewayExecution, assembled)
+  1515→    : resolveAgentSkillInputStateV1(skill, [assembled])
+  1516→  const contextEvidence = attachAgentContextInputStateV1(
+  1517→    evidenceFromContextResult(contextProfile, assembled),
+  1518→    inputState,
+  1519→  )
+  1520→  if (contextGatewayExecution) {
+  1521→    contextEvidence.inputStateSourceKeys = contextGatewayInputStateSourceKeysV1(skill, contextGatewayExecution)
+  1522→  }
+  1523→  const kind = targetArc?.type ?? resolveStoryArcRequestKindV1(request)
+  1524→  const narrativeBrief = buildNarrativeBriefV1({
+  1525→    authorRequest: request,
+  1526→    assembled,
+  1527→    inheritedAssumptions: input.inheritedAssumptions,
+  1528→  })
+  1529→  const nodeInput: StoryArcCopilotInput = {
+  1530→    projectId: input.projectId,
+  1531→    projectName: work.title,
+  1532→    scope,
+  1533→    worldGroupId,
+  1534→    authorRequest: request,
+  1535→    supplementalContext: input.supplementalContext ?? '',
+  1536→    inputGuidance: buildAgentSkillInputGuidanceV1(skill, inputState),
+  1537→    kind,
+  1538→    mutation,
+  1539→    assembled,
+  1540→    narrativeBrief,
+  1541→    snapshot,
+  1542→    config,
+  1543→    routingCategory,
+  1544→    generationOverrides: input.generationOverrides,
+  1545→    signal: input.signal,
+  1546→  }
+  1547→  const runRaw = async (messages: ChatMessage[]): Promise<StoryArcRawModelResultV1> => {
+  1548→    const startedAt = Date.now()
+  1549→    const result: ChatResult = {}
+  1550→    const output = dependencies.runAI
+  1551→      ? await dependencies.runAI(messages)
+  1552→      : await chat(messages, config, {
+  1553→          category: routingCategory,
+  1554→          projectId: input.projectId,
+  1555→          configOverrides: {
+  1556→            maxTokens: input.generationOverrides?.maxTokens ?? 10_000,
+  1557→            temperature: input.generationOverrides?.temperature ?? 0.55,
+  1558→          },
+  1559→          contextOverflowPolicy: 'reject',
+  1560→        }, input.signal, result, supportsVerifiedJsonObjectResponseV1(config.provider)
+  1561→          ? { responseFormat: 'json_object' }
+  1562→          : undefined)
+  1563→    return {
+  1564→      output,
+  1565→      ...(result.usage ? { usage: result.usage } : {}),
+  1566→      durationMs: Math.max(0, Date.now() - startedAt),
+  1567→    }
+  1568→  }
+  1569→  const node = createStoryArcCopilotNode(nodeInput, {
+  1570→    ...dependencies,
+  1571→    runAI: async messages => (await runRaw(messages)).output,
+  1572→  })
+  1573→  return {
+  1574→    node,
+  1575→    prepared: prepareGenerationNode(node, nodeInput),
+  1576→    input: nodeInput,
+  1577→    contextSources: assembled.included,
+  1578→    contextEvidence,
+  1579→    snapshot,
+  1580→    kind,
+  1581→    mutation,
+  1582→    label: mutation.operation === 'create'
+  1583→      ? (kind === 'main' ? '主线故事线' : kind === 'sub' ? '支线故事线' : '主线与支线')
+  1584→      : `${mutation.operation === 'expand' ? '扩写' : mutation.operation === 'rewrite' ? '重写' : mutation.operation === 'polish' ? '润色' : '重规划'}故事线`,
+  1585→    modelIdentity: { provider: config.provider, model: config.model },
+  1586→    contextGatewayExecution,
+  1587→    runRaw,
+  1588→  }
+  1589→}
+  1590→
+  1591→export function createStoryArcCopilotNode(
+  1592→  input: StoryArcCopilotInput,
+  1593→  dependencies: StoryArcCopilotDependencies = {},
+  1594→): PreparedStoryArcCopilot['node'] {
+  1595→  const readCurrent = dependencies.readCurrent ?? (() => readSnapshot(input.projectId, input.scope))
+  1596→  const saveCandidates = dependencies.saveCandidates ?? (candidates => adoptCandidates({
+  1597→    projectId: input.projectId,
+  1598→    scope: input.scope,
+  1599→    worldGroupId: input.worldGroupId,
+  1600→    snapshot: input.snapshot,
+  1601→    candidates,
+  1602→    mutation: input.mutation,
+  1603→  }))
+  1604→  const runAI = dependencies.runAI ?? (messages => chat(messages, input.config, {
+  1605→    category: input.routingCategory,
+  1606→    projectId: input.projectId,
+  1607→    configOverrides: {
+  1608→      maxTokens: input.generationOverrides?.maxTokens ?? 10_000,
+  1609→      temperature: input.generationOverrides?.temperature ?? 0.55,
+  1610→    },
+  1611→    contextOverflowPolicy: 'reject',
+  1612→  }, input.signal, undefined, supportsVerifiedJsonObjectResponseV1(input.config.provider)
+  1613→    ? { responseFormat: 'json_object' }
+  1614→    : undefined))
+  1615→  return {
+  1616→    id: `agent.outline.story-arcs:${input.projectId}:${input.worldGroupId ?? 'global'}:${input.kind}:${input.mutation.operation}:${input.mutation.targetArcId ?? 'new'}:${input.snapshot.serialized.length}`,
+  1617→    kind: 'outline.story-arcs',
+  1618→    editableInput: true,
+  1619→    assembleInput: buildStoryArcMessages,
+  1620→    run: async messages => parseStoryArcModelResponseV2(await runAI(messages)),
+  1621→    gate: output => {
+  1622→      const issues = candidateIssues(output, input.snapshot, input.kind, input.mutation)
+  1623→      return { status: issues.length ? 'blocked' : 'pass', issues }
+  1624→    },
+  1625→    adopt: async output => {
+  1626→      const current = await readCurrent()
+  1627→      if (current.serialized !== input.snapshot.serialized) throw new StoryArcCopilotStaleError()
+  1628→      const candidates = parseStoryArcCandidateDraft(JSON.stringify(output))
+  1629→      const issues = candidateIssues(candidates, current, input.kind, input.mutation)
+  1630→      if (issues.length) throw new Error(issues.map(issue => issue.message).join('；'))
+  1631→      return saveCandidates(candidates)
+  1632→    },
+  1633→  }
+  1634→}
+  1635→

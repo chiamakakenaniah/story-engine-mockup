@@ -1,0 +1,2002 @@
+     1→/**
+     2→ * STORY ENGINE · 故事引擎 — Shared Mock Data Module
+     3→ * --------------------------------------------------
+     4→ * Single source of truth for all Story Engine mock data + types.
+     5→ * Subagent A (foundation + sections 1-3) and Subagent B (sections 4-6 + tour)
+     6→ * both import from this file.
+     7→ *
+     8→ * Sections Subagent A built that consume this:
+     9→ *   - DistillationSection  (DISTILLED_PATTERNS, SAMPLE_REFERENCES, DistillationJob)
+    10→ *   - AggregationSection   (AGGREGATED_PATTERNS, getAllPatterns)
+    11→ *   - DistilledPatternCard (StoryPattern + nested types, renders any pattern)
+    12→ *
+    13→ * Sections Subagent B will consume this for:
+    14→ *   - PatternLibrarySection  (getAllPatterns, BUILT_IN_PATTERNS)
+    15→ *   - ReverseGenerationSection (StoryPattern.parameterSlots, OutlineNode)
+    16→ *   - MultiProductSection     (OutlineNode, StoryPattern)
+    17→ *   - TourOverlay             (everything for narration)
+    18→ */
+    19→
+    20→/* -------------------------------------------------------------------------- */
+    21→/*  TYPES                                                                     */
+    22→/* -------------------------------------------------------------------------- */
+    23→
+    24→export type PatternProvenance = 'built-in' | 'distilled' | 'aggregated'
+    25→
+    26→export type PatternStageRole =
+    27→  | 'setup'
+    28→  | 'inciting-incident'
+    29→  | 'rising-action'
+    30→  | 'midpoint'
+    31→  | 'crisis'
+    32→  | 'climax'
+    33→  | 'falling-action'
+    34→  | 'resolution'
+    35→  | 'epilogue'
+    36→  | 'custom'
+    37→
+    38→export interface PatternStageSlot {
+    39→  slotId: string
+    40→  role: PatternStageRole
+    41→  label: { en: string; zh: string }
+    42→  description: { en: string; zh: string }
+    43→  triggerConstraint: { en: string; zh: string }
+    44→  payoffConstraint: { en: string; zh: string }
+    45→  requiredArchetypeKeys?: string[]
+    46→  keyEventsMin?: number
+    47→  keyEventsMax?: number
+    48→  /** Only meaningful for aggregated meta-patterns: how many distilled instances confirmed this stage. */
+    49→  weight?: number
+    50→}
+    51→
+    52→export interface PatternArchetype {
+    53→  archetypeKey: string
+    54→  label: { en: string; zh: string }
+    55→  functionSummary: { en: string; zh: string }
+    56→  mandatoryAtRoles: PatternStageRole[]
+    57→}
+    58→
+    59→export interface PatternTurningPoint {
+    60→  pointKey: string
+    61→  label: { en: string; zh: string }
+    62→  slotId: string
+    63→  irreversibleChange: { en: string; zh: string }
+    64→}
+    65→
+    66→export interface PatternParameterSlot {
+    67→  paramKey: 'setting' | 'protagonist' | 'antagonist' | 'centralConflict' | 'stakes' | 'theme'
+    68→  label: { en: string; zh: string }
+    69→  required: boolean
+    70→  guidance: { en: string; zh: string }
+    71→}
+    72→
+    73→export interface PatternInvariant {
+    74→  code: string
+    75→  spec: string
+    76→  message: { en: string; zh: string }
+    77→}
+    78→
+    79→export interface StoryPattern {
+    80→  id: string
+    81→  patternKey: string
+    82→  name: { en: string; zh: string }
+    83→  family: { en: string; zh: string }
+    84→  familyKey: string // for grouping
+    85→  description: { en: string; zh: string }
+    86→  provenance: PatternProvenance
+    87→  stages: PatternStageSlot[]
+    88→  archetypes: PatternArchetype[]
+    89→  turningPoints: PatternTurningPoint[]
+    90→  parameterSlots: PatternParameterSlot[]
+    91→  invariants: PatternInvariant[]
+    92→  status: 'draft' | 'sealed'
+    93→  /** Only for aggregated patterns: how many distilled instances contributed. */
+    94→  statisticalWeight?: number
+    95→  /** Confidence score for aggregated patterns (0-1). */
+    96→  confidence?: number
+    97→  sourceReferenceIds?: string[]
+    98→}
+    99→
+   100→export interface ReferenceDocument {
+   101→  id: string
+   102→  title: { en: string; zh: string }
+   103→  author: string
+   104→  genre: { en: string; zh: string }
+   105→  lang: 'en' | 'zh' | 'ja' | 'de'
+   106→  totalChars: number
+   107→  year: number
+   108→}
+   109→
+   110→export interface OutlineNode {
+   111→  id: string
+   112→  parentId: string | null
+   113→  type: 'volume' | 'chapter'
+   114→  title: { en: string; zh: string }
+   115→  summary: { en: string; zh: string }
+   116→  order: number
+   117→  patternSlotId?: string // which pattern stage this node instantiates
+   118→}
+   119→
+   120→export interface DistillationJob {
+   121→  id: string
+   122→  referenceIds: string[]
+   123→  status: 'idle' | 'chunking' | 'analyzing' | 'lifting' | 'validating' | 'sealing' | 'done'
+   124→  progress: number // 0-100
+   125→  producedPatternId?: string
+   126→}
+   127→
+   128→/* -------------------------------------------------------------------------- */
+   129→/*  SAMPLE REFERENCES                                                         */
+   130→/* -------------------------------------------------------------------------- */
+   131→
+   132→export const SAMPLE_REFERENCES: ReferenceDocument[] = [
+   133→  {
+   134→    id: 'ref-buddenbrooks',
+   135→    title: { en: 'Buddenbrooks', zh: '布登勃洛克一家' },
+   136→    author: 'Thomas Mann · 托马斯·曼',
+   137→    genre: { en: 'Family saga', zh: '家族史诗' },
+   138→    lang: 'de',
+   139→    totalChars: 580000,
+   140→    year: 1901,
+   141→  },
+   142→  {
+   143→    id: 'ref-threebody',
+   144→    title: { en: 'The Three-Body Problem', zh: '三体' },
+   145→    author: '刘慈欣 · Liu Cixin',
+   146→    genre: { en: 'Hard sci-fi', zh: '硬科幻' },
+   147→    lang: 'zh',
+   148→    totalChars: 320000,
+   149→    year: 2008,
+   150→  },
+   151→  {
+   152→    id: 'ref-pride',
+   153→    title: { en: 'Pride and Prejudice', zh: '傲慢与偏见' },
+   154→    author: 'Jane Austen · 简·奥斯汀',
+   155→    genre: { en: 'Comedy of manners', zh: '世态喜剧' },
+   156→    lang: 'en',
+   157→    totalChars: 290000,
+   158→    year: 1813,
+   159→  },
+   160→  {
+   161→    id: 'ref-snowcountry',
+   162→    title: { en: 'Snow Country', zh: '雪国' },
+   163→    author: '川端康成 · Kawabata',
+   164→    genre: { en: 'Literary mood-piece', zh: '心境文学' },
+   165→    lang: 'ja',
+   166→    totalChars: 110000,
+   167→    year: 1948,
+   168→  },
+   169→  {
+   170→    id: 'ref-systememperor',
+   171→    title: { en: 'System Emperor', zh: '系统之皇' },
+   172→    author: '佚名 · Webnovel author',
+   173→    genre: { en: 'System-stream webnovel', zh: '系统流网文' },
+   174→    lang: 'zh',
+   175→    totalChars: 1200000,
+   176→    year: 2023,
+   177→  },
+   178→]
+   179→
+   180→/* -------------------------------------------------------------------------- */
+   181→/*  SHARED PARAMETER SLOTS  (reused by every distilled pattern — they all     */
+   182→/*  converge on the same six standard parameter slots per the spec)           */
+   183→/* -------------------------------------------------------------------------- */
+   184→
+   185→export const STANDARD_PARAMETER_SLOTS: PatternParameterSlot[] = [
+   186→  {
+   187→    paramKey: 'setting',
+   188→    label: { en: 'Setting', zh: '设定' },
+   189→    required: true,
+   190→    guidance: {
+   191→      en: 'A place, an era, a physics — the ground the story walks on.',
+   192→      zh: '一个地点、一个时代、一套物理规则——故事行走其上的地面。',
+   193→    },
+   194→  },
+   195→  {
+   196→    paramKey: 'protagonist',
+   197→    label: { en: 'Protagonist', zh: '主角' },
+   198→    required: true,
+   199→    guidance: {
+   200→      en: 'Who the reader follows. Carries the central want + the central wound.',
+   201→      zh: '读者追随的人。承载核心欲望与核心伤口。',
+   202→    },
+   203→  },
+   204→  {
+   205→    paramKey: 'antagonist',
+   206→    label: { en: 'Antagonist', zh: '对手' },
+   207→    required: true,
+   208→    guidance: {
+   209→      en: 'May be a person, a system, or an aspect of the protagonist. Must plausibly win.',
+   210→      zh: '可以是人、体制，或主角自身的一面。必须具有获胜可能。',
+   211→    },
+   212→  },
+   213→  {
+   214→    paramKey: 'centralConflict',
+   215→    label: { en: 'Central Conflict', zh: '核心冲突' },
+   216→    required: true,
+   217→    guidance: {
+   218→      en: 'The friction between protagonist-want and antagonist-block. Singular and irreducible.',
+   219→      zh: '主角欲望与对手阻碍之间的摩擦。唯一且不可化约。',
+   220→    },
+   221→  },
+   222→  {
+   223→    paramKey: 'stakes',
+   224→    label: { en: 'Stakes', zh: '代价' },
+   225→    required: true,
+   226→    guidance: {
+   227→      en: 'What is lost if the protagonist fails. Concrete, personal, escalating.',
+   228→      zh: '主角失败时失去的东西。具体、私人、不断升级。',
+   229→    },
+   230→  },
+   231→  {
+   232→    paramKey: 'theme',
+   233→    label: { en: 'Theme', zh: '主题' },
+   234→    required: false,
+   235→    guidance: {
+   236→      en: 'The proposition about the world the story argues by ending the way it does.',
+   237→      zh: '故事以其结局方式所论证的、关于世界的命题。',
+   238→    },
+   239→  },
+   240→]
+   241→
+   242→/* -------------------------------------------------------------------------- */
+   243→/*  DISTILLED PATTERNS — five fully fleshed bilingual patterns               */
+   244→/* -------------------------------------------------------------------------- */
+   245→
+   246→export const DISTILLED_PATTERNS: StoryPattern[] = [
+   247→  /* =========================== 1. BUDDENBROOKS =========================== */
+   248→  {
+   249→    id: 'pat-distilled-buddenbrooks',
+   250→    patternKey: 'bourgeois-decline',
+   251→    name: {
+   252→      en: 'Bourgeois Decline Across Generations',
+   253→      zh: '资产阶级代际衰落',
+   254→    },
+   255→    family: { en: 'Family saga', zh: '家族史诗' },
+   256→    familyKey: 'family-saga',
+   257→    description: {
+   258→      en: 'Three-generation decline of a bourgeois merchant family. Each generation inherits the family firm but loses a different faculty — first piety, then business sense, then the will to live — until the line ends in a sickly child. Mann is explicit: this is degeneration as a metered descent, not catastrophe.',
+   259→      zh: '资产阶级商人世家三代衰落。每一代继承家族商号，却丧失不同的能力——先是虔诚，再是商业头脑，最后是生的意志，直至血脉终结于一个体弱的孩子。曼氏明示：这是作为有节拍下行的退化，而非突发的灾难。',
+   260→    },
+   261→    provenance: 'distilled',
+   262→    sourceReferenceIds: ['ref-buddenbrooks'],
+   263→    status: 'sealed',
+   264→    stages: [
+   265→      {
+   266→        slotId: 's1-founding',
+   267→        role: 'setup',
+   268→        label: { en: 'Founding Consolidation', zh: '奠基巩固' },
+   269→        description: {
+   270→          en: 'The elder generation closes a transaction that establishes the family at its zenith — house, firm, social standing.',
+   271→          zh: '长辈一代完成一笔使家族抵达顶峰的交易——宅邸、商号、社会地位。',
+   272→        },
+   273→        triggerConstraint: {
+   274→          en: 'Open on a public ritual of arrival: a dinner, a baptism, a business handover.',
+   275→          zh: '以一场公开的抵达仪式开场：晚宴、洗礼、商号交接。',
+   276→        },
+   277→        payoffConstraint: {
+   278→          en: 'End with the family motto or ledger book being physically inscribed.',
+   279→          zh: '以家训或账簿被物理书写下来作结。',
+   280→        },
+   281→        requiredArchetypeKeys: ['arc-patriarch'],
+   282→        keyEventsMin: 2,
+   283→        keyEventsMax: 4,
+   284→      },
+   285→      {
+   286→        slotId: 's2-peak-fracture',
+   287→        role: 'inciting-incident',
+   288→        label: { en: 'Peak Fracture', zh: '顶峰裂痕' },
+   289→        description: {
+   290→          en: 'At the family\'s highest moment, an internal dissent — a daughter\'s marriage choice, a son\'s artistic turn — cracks the founding consensus.',
+   291→          zh: '家族鼎盛之际，一种内部异见——女儿的婚事抉择、儿子的艺术转向——使奠基共识出现裂痕。',
+   292→        },
+   293→        triggerConstraint: {
+   294→          en: 'Place the fracture at a festivity or celebration that masks tension.',
+   295→          zh: '将裂痕安排在掩盖紧张关系的庆典或宴会之中。',
+   296→        },
+   297→        payoffConstraint: {
+   298→          en: 'The dissent must be voiced out loud and visibly overruled.',
+   299→          zh: '异议必须被公开说出，并可见地被驳回。',
+   300→        },
+   301→        requiredArchetypeKeys: ['arc-dissenting-child'],
+   302→        keyEventsMin: 1,
+   303→        keyEventsMax: 2,
+   304→      },
+   305→      {
+   306→        slotId: 's3-rising-religion',
+   307→        role: 'rising-action',
+   308→        label: { en: 'Rising Piety, Falling Ledger', zh: '虔诚上行，账本下行' },
+   309→        description: {
+   310→          en: 'Second generation turns toward religion, music, or inwardness. Business decisions grow sentimental and the firm\'s margins erode.',
+   311→          zh: '第二代转向宗教、音乐或内省。商业决策趋于感性，商号利润被侵蚀。',
+   312→        },
+   313→        triggerConstraint: {
+   314→          en: 'A religious or aesthetic awakening scene followed by a poor business decision.',
+   315→          zh: '先安排宗教或审美觉醒场景，再接一个糟糕的商业决策。',
+   316→        },
+   317→        payoffConstraint: {
+   318→          en: 'A written record — diary entry, sermon notes — must foreshadow collapse.',
+   319→          zh: '必须有一段书面记录——日记、布道笔记——预示崩塌。',
+   320→        },
+   321→        requiredArchetypeKeys: ['arc-pious-heir'],
+   322→        keyEventsMin: 3,
+   323→        keyEventsMax: 5,
+   324→      },
+   325→      {
+   326→        slotId: 's4-midpoint-disaster',
+   327→        role: 'midpoint',
+   328→        label: { en: 'The Reversal Disaster', zh: '逆转之灾' },
+   329→        description: {
+   330→          en: 'A single decisive event — a bankruptcy filing, a duel, a public scandal — reverses the family\'s trajectory from ascent to descent.',
+   331→          zh: '一个决定性事件——破产申请、决斗、公开丑闻——将家族轨迹由升转降。',
+   332→        },
+   333→        triggerConstraint: {
+   334→          en: 'Locate the event at the symbolic center of the family: the firm, the house, the dinner table.',
+   335→          zh: '将事件安置于家族象征中心：商号、宅邸或餐桌。',
+   336→        },
+   337→        payoffConstraint: {
+   338→          en: 'A character present at the founding must witness and understand the reversal.',
+   339→          zh: '在场于奠基的角色必须目睹并理解这一逆转。',
+   340→        },
+   341→        requiredArchetypeKeys: ['arc-witness-elder'],
+   342→        keyEventsMin: 1,
+   343→        keyEventsMax: 1,
+   344→      },
+   345→      {
+   346→        slotId: 's5-isolation',
+   347→        role: 'crisis',
+   348→        label: { en: 'Social Isolation', zh: '社会隔离' },
+   349→        description: {
+   350→          en: 'The third generation withdraws from civic life. Old alliances dissolve; new ones form below the family\'s former station.',
+   351→          zh: '第三代退出公共生活。旧联盟解体；新关系建立在家族昔日地位之下。',
+   352→        },
+   353→        triggerConstraint: {
+   354→          en: 'A scene where the family is refused a courtesy they once took for granted.',
+   355→          zh: '安排一场家族被拒绝对他们曾经理所当然的礼遇的场景。',
+   356→        },
+   357→        payoffConstraint: {
+   358→          en: 'The house itself must begin to decay: a room is closed, a servant dismissed.',
+   359→          zh: '宅邸本身必须开始衰败：一间屋子被关闭，一名仆人被辞退。',
+   360→        },
+   361→        requiredArchetypeKeys: ['arc-depleted-heir'],
+   362→        keyEventsMin: 2,
+   363→        keyEventsMax: 4,
+   364→      },
+   365→      {
+   366→        slotId: 's6-last-child',
+   367→        role: 'climax',
+   368→        label: { en: 'The Last Child', zh: '最后的孩子' },
+   369→        description: {
+   370→          en: 'A sickly, precocious child of the third generation becomes the bearer of the family\'s accumulated refinement — and its accumulated weakness.',
+   371→          zh: '第三代中一个体弱、早慧的孩子成为家族积聚之精微——亦是积聚之脆弱——的承载体。',
+   372→        },
+   373→        triggerConstraint: {
+   374→          en: 'Show the child reading a forbidden book or asking a forbidden question.',
+   375→          zh: '让孩子阅读禁书或提出禁忌问题。',
+   376→        },
+   377→        payoffConstraint: {
+   378→          en: 'An elder must articulate, even briefly, that the line ends here.',
+   379→          zh: '长辈必须简短地说出：血脉到此为止。',
+   380→        },
+   381→        requiredArchetypeKeys: ['arc-last-child'],
+   382→        keyEventsMin: 1,
+   383→        keyEventsMax: 2,
+   384→      },
+   385→      {
+   386→        slotId: 's7-death',
+   387→        role: 'falling-action',
+   388→        label: { en: 'Quiet Death', zh: '寂静之死' },
+   389→        description: {
+   390→          en: 'The death that closes the line is small, domestic, almost unnoticed by the town. There is no public mourning.',
+   391→          zh: '终结血脉的死亡是微小的、家常的、几乎不被镇上注意。没有公开哀悼。',
+   392→        },
+   393→        triggerConstraint: {
+   394→          en: 'Locate the death in the most ordinary room of the most ordinary day.',
+   395→          zh: '将死亡安置于最平常的一日中最平常的房间。',
+   396→        },
+   397→        payoffConstraint: {
+   398→          en: 'The firm\'s sign or the family\'s name must be physically removed.',
+   399→          zh: '商号招牌或家族姓氏必须被物理移除。',
+   400→        },
+   401→        keyEventsMin: 1,
+   402→        keyEventsMax: 1,
+   403→      },
+   404→      {
+   405→        slotId: 's8-aftermath',
+   406→        role: 'epilogue',
+   407→        label: { en: 'Sale of the House', zh: '宅邸出售' },
+   408→        description: {
+   409→          en: 'The house is sold to strangers. A surviving narrator catalogs the inventory as it leaves.',
+   410→          zh: '宅邸被售予陌生人。幸存的叙述者逐一登记被搬走的物件。',
+   411→        },
+   412→        triggerConstraint: {
+   413→          en: 'A stranger\'s hand on a familiar object.',
+   414→          zh: '陌生人的手放在熟悉的物件上。',
+   415→        },
+   416→        payoffConstraint: {
+   417→          en: 'End on an inventory ledger — the same object that opened the book.',
+   418→          zh: '以一本清点账簿作结——与开篇同一物件。',
+   419→        },
+   420→        keyEventsMin: 1,
+   421→        keyEventsMax: 2,
+   422→      },
+   423→    ],
+   424→    archetypes: [
+   425→      {
+   426→        archetypeKey: 'arc-patriarch',
+   427→        label: { en: 'The Founding Patriarch', zh: '奠基家主' },
+   428→        functionSummary: {
+   429→          en: 'Embodies the founding ethos; his handwriting on the ledger book becomes the family\'s talisman.',
+   430→          zh: '体现奠基精神；他在账簿上的字迹成为家族的护符。',
+   431→        },
+   432→        mandatoryAtRoles: ['setup'],
+   433→      },
+   434→      {
+   435→        archetypeKey: 'arc-dissenting-child',
+   436→        label: { en: 'The Dissenting Child', zh: '异见之子' },
+   437→        functionSummary: {
+   438→          en: 'Voices the first refusal. Her loss is the price the family pays for staying itself.',
+   439→          zh: '说出第一声拒绝。她的失去是家族为保持自身所支付的代价。',
+   440→        },
+   441→        mandatoryAtRoles: ['inciting-incident'],
+   442→      },
+   443→      {
+   444→        archetypeKey: 'arc-pious-heir',
+   445→        label: { en: 'The Pious Heir', zh: '虔诚继承人' },
+   446→        functionSummary: {
+   447→          en: 'Turns inheritance into interiority. His aesthetic refinement is also his business incompetence.',
+   448→          zh: '将继承内化。他的审美精微同时是他的商业无能。',
+   449→        },
+   450→        mandatoryAtRoles: ['rising-action'],
+   451→      },
+   452→      {
+   453→        archetypeKey: 'arc-witness-elder',
+   454→        label: { en: 'The Witness Elder', zh: '见证长辈' },
+   455→        functionSummary: {
+   456→          en: 'Saw the founding and now sees the reversal. She is the family\'s living memory and its living grief.',
+   457→          zh: '亲历奠基，今又目睹逆转。她是家族活着的记忆，也是活着的悲哀。',
+   458→        },
+   459→        mandatoryAtRoles: ['midpoint'],
+   460→      },
+   461→      {
+   462→        archetypeKey: 'arc-last-child',
+   463→        label: { en: 'The Last Child', zh: '末代之子' },
+   464→        functionSummary: {
+   465→          en: 'Refinement without continuation. Carries everything the family learned and nothing it can transmit.',
+   466→          zh: '精微而无以为继。承载家族所学一切，却无可传承之处。',
+   467→        },
+   468→        mandatoryAtRoles: ['climax', 'falling-action'],
+   469→      },
+   470→    ],
+   471→    turningPoints: [
+   472→      {
+   473→        pointKey: 'tp-fracture',
+   474→        label: { en: 'The Fracture', zh: '裂痕' },
+   475→        slotId: 's2-peak-fracture',
+   476→        irreversibleChange: {
+   477→          en: 'The family\'s self-image as unified is broken; future dissent is now thinkable.',
+   478→          zh: '家族作为整体的自画像破碎；日后异见自此可被想象。',
+   479→        },
+   480→      },
+   481→      {
+   482→        pointKey: 'tp-reversal',
+   483→        label: { en: 'The Reversal', zh: '逆转' },
+   484→        slotId: 's4-midpoint-disaster',
+   485→        irreversibleChange: {
+   486→          en: 'Trajectory flips from ascent to descent. Future chapters cannot be written as success.',
+   487→          zh: '轨迹由升转降。后续章节无法再以胜利书写。',
+   488→        },
+   489→      },
+   490→      {
+   491→        pointKey: 'tp-closing',
+   492→        label: { en: 'The Closing of the Line', zh: '血脉封口' },
+   493→        slotId: 's6-last-child',
+   494→        irreversibleChange: {
+   495→          en: 'No heir capable of continuation remains. The story is now an ending.',
+   496→          zh: '不再有可承继之嗣。故事自此成为一段终结。',
+   497→        },
+   498→      },
+   499→    ],
+   500→    parameterSlots: STANDARD_PARAMETER_SLOTS,
+   501→    invariants: [
+   502→      {
+   503→        code: 'INV-DECLINE-MONOTONE',
+   504→        spec: 'familyTrajectory.monotonic == "descending"',
+   505→        message: {
+   506→          en: 'Family trajectory must be monotonically descending across generations — no recovery arc.',
+   507→          zh: '家族轨迹必须在代际间单调下行——不得出现恢复弧线。',
+   508→        },
+   509→      },
+   510→      {
+   511→        code: 'INV-LEDGER-BOOKENDS',
+   512→        spec: 'openingArtifact == closingArtifact == "family ledger"',
+   513→        message: {
+   514→          en: 'The same ledger book (or its sale) must open and close the pattern.',
+   515→          zh: '同一账簿（或其出售）必须开启并闭合此模式。',
+   516→        },
+   517→      },
+   518→      {
+   519→        code: 'INV-LINE-TERMINATES',
+   520→        spec: 'generationCount >= 3 && finalGeneration.hasNoViableHeir == true',
+   521→        message: {
+   522→          en: 'Pattern requires at least three generations; the final generation must produce no viable heir.',
+   523→          zh: '此模式要求至少三代；末代必须无可承继之嗣。',
+   524→        },
+   525→      },
+   526→    ],
+   527→  },
+   528→
+   529→  /* =========================== 2. THREE-BODY =========================== */
+   530→  {
+   531→    id: 'pat-distilled-threebody',
+   532→    patternKey: 'first-contact-doomsday',
+   533→    name: {
+   534→      en: 'First Contact Doomsday',
+   535→      zh: '末日接触',
+   536→    },
+   537→    family: { en: 'Hard sci-fi first contact', zh: '硬科幻首次接触' },
+   538→    familyKey: 'hard-scifi-contact',
+   539→    description: {
+   540→      en: 'A signal from a non-human intelligence triggers a multi-decade countdown to civilizational annihilation. The pattern tracks the slow comprehension of an unavailable opponent — one whose moves arrive on a 400-year delay.',
+   541→      zh: '一段来自非人智慧的信号触发了一场数十年的文明毁灭倒计时。模式追踪对不可接触之对手的缓慢认知——其行动以四百年延迟抵达。',
+   542→    },
+   543→    provenance: 'distilled',
+   544→    sourceReferenceIds: ['ref-threebody'],
+   545→    status: 'sealed',
+   546→    stages: [
+   547→      {
+   548→        slotId: 's1-signal',
+   549→        role: 'inciting-incident',
+   550→        label: { en: 'The Signal', zh: '信号' },
+   551→        description: {
+   552→          en: 'A human transmitter sends — or intercepts — a message that should not exist. The message either answers or initiates contact.',
+   553→          zh: '一位人类操作者发送——或截获——一段本不应存在的讯息。讯息或回答或发起接触。',
+   554→        },
+   555→        triggerConstraint: {
+   556→          en: 'A scene at a radio installation at night, a lone operator, a screen flickering.',
+   557→          zh: '夜间射电设施场景，独身操作员，屏幕闪烁。',
+   558→        },
+   559→        payoffConstraint: {
+   560→          en: 'The operator must make a decisive personal choice that affects the message\'s direction.',
+   561→          zh: '操作员必须做出影响讯息走向的决定性个人抉择。',
+   562→        },
+   563→        requiredArchetypeKeys: ['arc-lone-operator'],
+   564→        keyEventsMin: 1,
+   565→        keyEventsMax: 1,
+   566→      },
+   567→      {
+   568→        slotId: 's2-disbelief',
+   569→        role: 'rising-action',
+   570→        label: { en: 'Institutional Disbelief', zh: '体制不信' },
+   571→        description: {
+   572→          en: 'Authorities receive the signal and refuse its implication. A small clandestine network forms around those who do believe.',
+   573→          zh: '当局接收信号却拒绝其含义。一个由相信者构成的小型隐秘网络逐渐成形。',
+   574→        },
+   575→        triggerConstraint: {
+   576→          en: 'A formal hearing where the evidence is presented and dismissed.',
+   577→          zh: '一场正式听证会，证据被呈交并被驳回。',
+   578→        },
+   579→        payoffConstraint: {
+   580→          en: 'The network\'s first successful covert action must occur.',
+   581→          zh: '该网络必须完成首次成功的隐蔽行动。',
+   582→        },
+   583→        requiredArchetypeKeys: ['arc-clandestine-organizer'],
+   584→        keyEventsMin: 2,
+   585→        keyEventsMax: 4,
+   586→      },
+   587→      {
+   588→        slotId: 's3-confirmation',
+   589→        role: 'midpoint',
+   590→        label: { en: 'The Confirmation', zh: '确认' },
+   591→        description: {
+   592→          en: 'A phenomenon impossible to deny — an astronomical event, a physics impossibility — confirms the contact is real. Public knowledge follows.',
+   593→          zh: '一段无法否认的现象——天文异象、物理悖论——证实接触属实。随后是公众认知。',
+   594→        },
+   595→        triggerConstraint: {
+   596→          en: 'The confirming event must be visible to a mass audience, not only to specialists.',
+   597→          zh: '证实事件必须为大众所见，而非仅限专家。',
+   598→        },
+   599→        payoffConstraint: {
+   600→          en: 'A character who disbelieved must publicly recant.',
+   601→          zh: '一位不信者必须公开认错。',
+   602→        },
+   603→        requiredArchetypeKeys: ['arc-recanter'],
+   604→        keyEventsMin: 1,
+   605→        keyEventsMax: 2,
+   606→      },
+   607→      {
+   608→        slotId: 's4-factioning',
+   609→        role: 'rising-action',
+   610→        label: { en: 'Human Factioning', zh: '人类分裂' },
+   611→        description: {
+   612→          en: 'Splits form: collaborators, resistors, escape-ists, nihilists. Each acts on its own theory of the contact\'s intent.',
+   613→          zh: '阵营形成：合作者、抵抗者、逃避者、虚无主义者。各依自身对外星意图的判断行动。',
+   614→        },
+   615→        triggerConstraint: {
+   616→          en: 'A public debate or manifesto where factions declare themselves.',
+   617→          zh: '一场公开辩论或宣言，各阵营自我宣告。',
+   618→        },
+   619→        payoffConstraint: {
+   620→          en: 'A faction must commit a betrayal of the others that cannot be undone.',
+   621→          zh: '一阵营必须对其他阵营犯下不可逆转的背叛。',
+   622→        },
+   623→        requiredArchetypeKeys: ['arc-faction-leader'],
+   624→        keyEventsMin: 2,
+   625→        keyEventsMax: 4,
+   626→      },
+   627→      {
+   628→        slotId: 's5-countdown',
+   629→        role: 'crisis',
+   630→        label: { en: 'The Countdown', zh: '倒计时' },
+   631→        description: {
+   632→          en: 'A concrete deadline is established — a fleet, a probe, an arrival. Time pressure forces impossible choices.',
+   633→          zh: '一个具体期限被确定——舰队、探测器、抵达。时间压力迫使不可能的抉择。',
+   634→        },
+   635→        triggerConstraint: {
+   636→          en: 'A scene where the deadline is calculated and written down.',
+   637→          zh: '一场期限被计算并写下之场景。',
+   638→        },
+   639→        payoffConstraint: {
+   640→          en: 'A character must trade an irreducible personal value for time.',
+   641→          zh: '一位角色必须以不可化约的个人价值换取时间。',
+   642→        },
+   643→        requiredArchetypeKeys: ['arc-sacrificer'],
+   644→        keyEventsMin: 1,
+   645→        keyEventsMax: 2,
+   646→      },
+   647→      {
+   648→        slotId: 's6-doomsday-weapon',
+   649→        role: 'climax',
+   650→        label: { en: 'The Doomsday Weapon', zh: '末日武器' },
+   651→        description: {
+   652→          en: 'A weapon — physical, informational, or conceptual — is deployed. It either fails catastrophically or succeeds catastrophically. The pattern requires that no clean victory is possible.',
+   653→          zh: '一件武器——物理、信息或概念——被部署。其失败必惨烈，成功亦必惨烈。模式要求：无干净胜利可能。',
+   654→        },
+   655→        triggerConstraint: {
+   656→          en: 'A launch or activation sequence rendered in technical detail.',
+   657→          zh: '一段以技术细节呈现的发射或激活序列。',
+   658→        },
+   659→        payoffConstraint: {
+   660→          en: 'The weapon\'s effect must be ambiguous at the moment of activation.',
+   661→          zh: '武器激活瞬间其效果必须暧昧不明。',
+   662→        },
+   663→        requiredArchetypeKeys: ['arc-operator'],
+   664→        keyEventsMin: 1,
+   665→        keyEventsMax: 1,
+   666→      },
+   667→      {
+   668→        slotId: 's7-after',
+   669→        role: 'falling-action',
+   670→        label: { en: 'After the Weapon', zh: '武器之后' },
+   671→        description: {
+   672→          en: 'The world is altered but the threat is not removed. Survivors assess; planners regroup; the countdown is reset, not cancelled.',
+   673→          zh: '世界已改变，威胁未消除。幸存者评估，筹划者重组，倒计时被重置而非取消。',
+   674→        },
+   675→        triggerConstraint: {
+   676→          en: 'A scene of wreckage followed by a scene of planning.',
+   677→          zh: '一场废墟场景之后接一场筹划场景。',
+   678→        },
+   679→        payoffConstraint: {
+   680→          en: 'A new countdown must be established, longer than the last.',
+   681→          zh: '必须确立新的倒计时，比上次更长。',
+   682→        },
+   683→        keyEventsMin: 1,
+   684→        keyEventsMax: 2,
+   685→      },
+   686→      {
+   687→        slotId: 's8-leaving',
+   688→        role: 'epilogue',
+   689→        label: { en: 'Leaving the Cradle', zh: '离开摇篮' },
+   690→        description: {
+   691→          en: 'A remnant of humanity departs — physically, in vessels, or symbolically, in archived memory — for a future no participant will live to see.',
+   692→          zh: '人类之残余启程——或物理上，乘船离去；或象征上，存档记忆——前往无人能亲历的未来。',
+   693→        },
+   694→        triggerConstraint: {
+   695→          en: 'A vessel or archive being sealed.',
+   696→          zh: '船舱或档案被密封。',
+   697→        },
+   698→        payoffConstraint: {
+   699→          en: 'End on the perspective of someone staying behind, watching the departure.',
+   700→          zh: '以留者目送离去者视角作结。',
+   701→        },
+   702→        keyEventsMin: 1,
+   703→        keyEventsMax: 1,
+   704→      },
+   705→    ],
+   706→    archetypes: [
+   707→      {
+   708→        archetypeKey: 'arc-lone-operator',
+   709→        label: { en: 'The Lone Operator', zh: '孤身操作员' },
+   710→        functionSummary: {
+   711→          en: 'A technician whose private wound makes them the only person willing to send — or believe — the signal.',
+   712→          zh: '一位技术员，其私人创伤使其成为唯一愿意发送——或相信——信号之人。',
+   713→        },
+   714→        mandatoryAtRoles: ['inciting-incident'],
+   715→      },
+   716→      {
+   717→        archetypeKey: 'arc-clandestine-organizer',
+   718→        label: { en: 'The Clandestine Organizer', zh: '隐秘组织者' },
+   719→        functionSummary: {
+   720→          en: 'Builds the shadow network that keeps the contact alive when institutions refuse it.',
+   721→          zh: '在体制拒绝时维持接触存活的暗网建造者。',
+   722→        },
+   723→        mandatoryAtRoles: ['rising-action'],
+   724→      },
+   725→      {
+   726→        archetypeKey: 'arc-recanter',
+   727→        label: { en: 'The Recanter', zh: '认错者' },
+   728→        functionSummary: {
+   729→          en: 'Once powerful, now public: confirms the threat. Their fall grants legitimacy.',
+   730→          zh: '曾经有力，如今公开：确认威胁。其跌落赋予合法性。',
+   731→        },
+   732→        mandatoryAtRoles: ['midpoint'],
+   733→      },
+   734→      {
+   735→        archetypeKey: 'arc-faction-leader',
+   736→        label: { en: 'The Faction Leader', zh: '阵营领袖' },
+   737→        functionSummary: {
+   738→          en: 'Embodies one human theory of the alien. Their faction\'s failure is the cost of misreading.',
+   739→          zh: '体现一种对外星的人类理论。其阵营之失败即误读之代价。',
+   740→        },
+   741→        mandatoryAtRoles: ['rising-action', 'climax'],
+   742→      },
+   743→      {
+   744→        archetypeKey: 'arc-sacrificer',
+   745→        label: { en: 'The Sacrificer', zh: '牺牲者' },
+   746→        functionSummary: {
+   747→          en: 'Trades the irreplaceable for the unbuyable: a child, a memory, a sanity, in exchange for time.',
+   748→          zh: '以不可替者换不可买者：孩子、记忆、理智，换取时间。',
+   749→        },
+   750→        mandatoryAtRoles: ['crisis'],
+   751→      },
+   752→    ],
+   753→    turningPoints: [
+   754→      {
+   755→        pointKey: 'tp-signal-sent',
+   756→        label: { en: 'Signal Sent', zh: '信号发出' },
+   757→        slotId: 's1-signal',
+   758→        irreversibleChange: {
+   759→          en: 'The transmitter cannot unsend; the contact is now causally real.',
+   760→          zh: '发送者无法撤回；接触自此因果地真实。',
+   761→        },
+   762→      },
+   763→      {
+   764→        pointKey: 'tp-confirmation',
+   765→        label: { en: 'Public Confirmation', zh: '公众确认' },
+   766→        slotId: 's3-confirmation',
+   767→        irreversibleChange: {
+   768→          en: 'The threat moves from plausible to undeniable; private doubt is no longer tenable.',
+   769→          zh: '威胁由可信转为不可辩驳；私下怀疑自此不可维系。',
+   770→        },
+   771→      },
+   772→      {
+   773→        pointKey: 'tp-weapon-fired',
+   774→        label: { en: 'Weapon Fired', zh: '武器启动' },
+   775→        slotId: 's6-doomsday-weapon',
+   776→        irreversibleChange: {
+   777→          en: 'The first strike has been made; counter-strike is now inevitable, on a delay the survivors will not see resolved.',
+   778→          zh: '首轮打击已发出；反击必至，其延迟使幸存者无以亲历。',
+   779→        },
+   780→      },
+   781→    ],
+   782→    parameterSlots: STANDARD_PARAMETER_SLOTS,
+   783→    invariants: [
+   784→      {
+   785→        code: 'INV-LIGHTCONE-DELAY',
+   786→        spec: 'responseDelayYears > humanLifespan',
+   787→        message: {
+   788→          en: 'The opponent\'s reply delay must exceed a single human lifespan — no individual can negotiate directly.',
+   789→          zh: '对手之回应延迟必须超出单一人类寿命——任何个体无法直接谈判。',
+   790→        },
+   791→      },
+   792→      {
+   793→        code: 'INV-NO-CLEAN-VICTORY',
+   794→        spec: 'climax.outcome.type != "clean_victory"',
+   795→        message: {
+   796→          en: 'The climax must not produce a clean victory. Either it fails, or it succeeds at unacceptable cost.',
+   797→          zh: '高潮不得产生干净胜利。或失败，或以不可接受之代价成功。',
+   798→        },
+   799→      },
+   800→      {
+   801→        code: 'INV-COUNTDOWN-RESET',
+   802→        spec: 'finalCountdownYears > initialCountdownYears',
+   803→        message: {
+   804→          en: 'The story\'s closing countdown must be longer than its opening one — the threat escalates, not resolves.',
+   805→          zh: '故事结束之倒计时必须长于其起始——威胁升级而非化解。',
+   806→        },
+   807→      },
+   808→    ],
+   809→  },
+   810→
+   811→  /* =========================== 3. PRIDE & PREJUDICE =========================== */
+   812→  {
+   813→    id: 'pat-distilled-pride',
+   814→    patternKey: 'comedy-of-manners-recognition',
+   815→    name: {
+   816→      en: 'Comedy of Manners · Mutual Misreading',
+   817→      zh: '世态喜剧·相互误读',
+   818→    },
+   819→    family: { en: 'Comedy of manners', zh: '世态喜剧' },
+   820→    familyKey: 'comedy-of-manners',
+   821→    description: {
+   822→      en: 'Two intelligent people of opposed temperaments misread one another across drawing-room scenes, letters, and intermediary relatives. Each public rebuke is also a private self-revision. Marriage is achieved only when both admit a misreading.',
+   823→      zh: '两位性情相反的智者跨客厅场景、书信、居间亲族相互误读。每一公开斥责亦是私下自我修正。婚姻仅在双方承认误读时成立。',
+   824→    },
+   825→    provenance: 'distilled',
+   826→    sourceReferenceIds: ['ref-pride'],
+   827→    status: 'sealed',
+   828→    stages: [
+   829→      {
+   830→        slotId: 's1-assembly',
+   831→        role: 'setup',
+   832→        label: { en: 'The Assembly', zh: '舞会初见' },
+   833→        description: {
+   834→          en: 'A public assembly introduces the two principals. One is slighted by the other; the slight seeds the entire subsequent plot.',
+   835→          zh: '一场公共舞会引出两位主角。一人受另一人之怠慢；此怠慢种下整部情节之种。',
+   836→        },
+   837→        triggerConstraint: {
+   838→          en: 'Open on a crowded room; the principals\' meeting must be witnessed by a chorus of observers.',
+   839→          zh: '以一拥挤房间开场；主角相遇必须为众目所睹。',
+   840→        },
+   841→        payoffConstraint: {
+   842→          en: 'End on a reported slight — the slight itself must not be overheard by the slighted party at this stage.',
+   843→          zh: '以转述之怠慢作结——怠慢本身此时不得为受怠慢者亲耳所闻。',
+   844→        },
+   845→        requiredArchetypeKeys: ['arc-principal-a', 'arc-principal-b'],
+   846→        keyEventsMin: 1,
+   847→        keyEventsMax: 1,
+   848→      },
+   849→      {
+   850→        slotId: 's2-misreading',
+   851→        role: 'inciting-incident',
+   852→        label: { en: 'Initial Misreading', zh: '初次误读' },
+   853→        description: {
+   854→          en: 'Each principal forms a fixed, slightly wrong, first theory of the other. The theories are mirrored: what one admires, the other despises, and vice versa.',
+   855→          zh: '两位主角各自形成对方固定而微误之初判。判断互为镜像：一方所慕，另一方所恶，反之亦然。',
+   856→        },
+   857→        triggerConstraint: {
+   858→          en: 'A private interior monologue or letter in which the misreading is articulated.',
+   859→          zh: '一段私下内心独白或书信，其中误读被说出。',
+   860→        },
+   861→        payoffConstraint: {
+   862→          en: 'The misreading must be contradicted by a small gesture the misreader ignores.',
+   863→          zh: '误读必须被一桩误读者所忽略之小动作反驳。',
+   864→        },
+   865→        requiredArchetypeKeys: ['arc-principal-a'],
+   866→        keyEventsMin: 1,
+   867→        keyEventsMax: 2,
+   868→      },
+   869→      {
+   870→        slotId: 's3-intermediary',
+   871→        role: 'rising-action',
+   872→        label: { en: 'The Intermediary', zh: '居间之人' },
+   873→        description: {
+   874→          en: 'A relative, friend, or rival carries information — true, false, or distorted — between the principals. The comedy\'s tempo is set by the intermediary\'s timing.',
+   875→          zh: '一位亲族、朋友或对手在主角之间传递信息——或真、或假、或扭曲。喜剧节奏由居间者之时序设定。',
+   876→        },
+   877→        triggerConstraint: {
+   878→          en: 'The intermediary must deliver a piece of information late, misdirected, or both.',
+   879→          zh: '居间者必须迟到、误送、或二者皆然地传递一则信息。',
+   880→        },
+   881→        payoffConstraint: {
+   882→          en: 'A principal must act on the distorted information in a way that worsens the misreading.',
+   883→          zh: '一方主角必须依扭曲信息行动，使误读加深。',
+   884→        },
+   885→        requiredArchetypeKeys: ['arc-intermediary'],
+   886→        keyEventsMin: 2,
+   887→        keyEventsMax: 4,
+   888→      },
+   889→      {
+   890→        slotId: 's4-letter',
+   891→        role: 'midpoint',
+   892→        label: { en: 'The Letter', zh: '书信' },
+   893→        description: {
+   894→          en: 'A letter arrives that compels one principal to revise, partially, the misreading. The revision is incomplete — it corrects one error and preserves another.',
+   895→          zh: '一封书信到达，迫使一方主角部分修正误读。修正不完整——纠一误而留一误。',
+   896→        },
+   897→        triggerConstraint: {
+   898→          en: 'The letter must be read in private, in full, on the page.',
+   899→          zh: '书信必须被私下、完整、原文阅读。',
+   900→        },
+   901→        payoffConstraint: {
+   902→          en: 'The reader\'s facial expression must change at a specific sentence.',
+   903→          zh: '读者面容必须于某一特定句子发生变化。',
+   904→        },
+   905→        requiredArchetypeKeys: ['arc-principal-a'],
+   906→        keyEventsMin: 1,
+   907→        keyEventsMax: 1,
+   908→      },
+   909→      {
+   910→        slotId: 's5-crisis-proposal',
+   911→        role: 'crisis',
+   912→        label: { en: 'The Disastrous Proposal', zh: '灾难求婚' },
+   913→        description: {
+   914→          en: 'A proposal of marriage is made too early — while the misreading is only half-corrected. It is refused, brutally and instructively.',
+   915→          zh: '求婚时机过早——误读仅半修正。被拒，且拒得惨烈而具教益。',
+   916→        },
+   917→        triggerConstraint: {
+   918→          en: 'The proposal must occur in a private room, witnessed by no third party.',
+   919→          zh: '求婚必须发生于无第三方在场之私室。',
+   920→        },
+   921→        payoffConstraint: {
+   922→          en: 'The refusal must end on a sentence the other principal will repeat to themselves later.',
+   923→          zh: '拒绝必须以一句他日主角将默念之句作结。',
+   924→        },
+   925→        requiredArchetypeKeys: ['arc-principal-a', 'arc-principal-b'],
+   926→        keyEventsMin: 1,
+   927→        keyEventsMax: 1,
+   928→      },
+   929→      {
+   930→        slotId: 's6-second-letter',
+   931→        role: 'climax',
+   932→        label: { en: 'The Second Letter', zh: '第二封书信' },
+   933→        description: {
+   934→          en: 'A second letter — written after the disastrous proposal — completes the correction. The principals now share one another\'s self-revisions.',
+   935→          zh: '第二封书信——作于灾难求婚之后——完成修正。两位主角自此共享彼此之自我修正。',
+   936→        },
+   937→        triggerConstraint: {
+   938→          en: 'The letter must reference a specific sentence from the refusal verbatim.',
+   939→          zh: '书信必须逐字引用拒绝中之一句。',
+   940→        },
+   941→        payoffConstraint: {
+   942→          en: 'The reader must, for the first time, see the other principal\'s wound.',
+   943→          zh: '读者必须首次看见对方主角之伤口。',
+   944→        },
+   945→        requiredArchetypeKeys: ['arc-principal-b'],
+   946→        keyEventsMin: 1,
+   947→        keyEventsMax: 1,
+   948→      },
+   949→      {
+   950→        slotId: 's7-acknowledgement',
+   951→        role: 'falling-action',
+   952→        label: { en: 'Mutual Acknowledgement', zh: '相互承认' },
+   953→        description: {
+   954→          en: 'The two meet in public and, through indirection, signal that each has revised. No direct declaration yet.',
+   955→          zh: '两人于公共场合相见，以间接方式示意各自已修正。尚无直白宣告。',
+   956→        },
+   957→        triggerConstraint: {
+   958→          en: 'A scene in a public room where the two speak past one another about a third party.',
+   959→          zh: '一场公共房间之场景，两人围绕第三方曲折交谈。',
+   960→        },
+   961→        payoffConstraint: {
+   962→          en: 'A third party must misread the scene entirely — and be wrong.',
+   963→          zh: '第三方必须完全误读此景——且必须错误。',
+   964→        },
+   965→        keyEventsMin: 1,
+   966→        keyEventsMax: 2,
+   967→      },
+   968→      {
+   969→        slotId: 's8-marriage',
+   970→        role: 'resolution',
+   971→        label: { en: 'The Marriage', zh: '婚姻' },
+   972→        description: {
+   973→          en: 'A second proposal is made and accepted. The principals speak openly of their former misreadings; the comedy closes with the acknowledgement that mutual error was the precondition of mutual recognition.',
+   974→          zh: '第二次求婚提出并被接受。主角公开谈论昔日误读；喜剧以承认相互之误乃相互承认之前提作结。',
+   975→        },
+   976→        triggerConstraint: {
+   977→          en: 'The proposal must occur in private, then be announced in public.',
+   978→          zh: '求婚必须私下提出，再于公共场合宣告。',
+   979→        },
+   980→        payoffConstraint: {
+   981→          en: 'The final exchange must include a sentence beginning, "I was wrong about you."',
+   982→          zh: '末次对话必须包含一句以"我曾错看你"开头之语。',
+   983→        },
+   984→        requiredArchetypeKeys: ['arc-principal-a', 'arc-principal-b'],
+   985→        keyEventsMin: 1,
+   986→        keyEventsMax: 1,
+   987→      },
+   988→    ],
+   989→    archetypes: [
+   990→      {
+   991→        archetypeKey: 'arc-principal-a',
+   992→        label: { en: 'Principal A · The Slighted', zh: '主角甲·受怠慢者' },
+   993→        functionSummary: {
+   994→          en: 'Reads too quickly, judges too publicly. The arc is from public wit to private revision.',
+   995→          zh: '读得太快，判断得太公开。其弧线由公开机锋走向私下修正。',
+   996→        },
+   997→        mandatoryAtRoles: ['setup', 'inciting-incident', 'midpoint', 'crisis'],
+   998→      },
+   999→      {
+  1000→        archetypeKey: 'arc-principal-b',
+  1001→        label: { en: 'Principal B · The Slighter', zh: '主角乙·怠慢者' },
+  1002→        functionSummary: {
+  1003→          en: 'Judges by class and silence. The arc is from private contempt to written self-correction.',
+  1004→          zh: '以阶层与沉默判断。其弧线由私下轻蔑走向书面自我修正。',
+  1005→        },
+  1006→        mandatoryAtRoles: ['setup', 'crisis', 'climax'],
+  1007→      },
+  1008→      {
+  1009→        archetypeKey: 'arc-intermediary',
+  1010→        label: { en: 'The Intermediary', zh: '居间之人' },
+  1011→        functionSummary: {
+  1012→          en: 'A relative whose timing and tone set the comedy\'s tempo. Comic when wrong, poignant when right.',
+  1013→          zh: '一位亲族，其时序与腔调设定喜剧节奏。错则喜剧，对则动人。',
+  1014→        },
+  1015→        mandatoryAtRoles: ['rising-action'],
+  1016→      },
+  1017→      {
+  1018→        archetypeKey: 'arc-false-suitor',
+  1019→        label: { en: 'The False Suitor', zh: '伪求婚者' },
+  1020→        functionSummary: {
+  1021→          en: 'Embodies the misreading crystallized: appears correct, is wrong; his exposure precipitates the second letter.',
+  1022→          zh: '误读之化身：似对实错；其暴露催化第二封书信。',
+  1023→        },
+  1024→        mandatoryAtRoles: ['rising-action', 'midpoint'],
+  1025→      },
+  1026→    ],
+  1027→    turningPoints: [
+  1028→      {
+  1029→        pointKey: 'tp-first-slight',
+  1030→        label: { en: 'The First Slight', zh: '初次怠慢' },
+  1031→        slotId: 's1-assembly',
+  1032→        irreversibleChange: {
+  1033→          en: 'A name is linked to a fixed adjective in someone\'s mind; the adjective must be lived down.',
+  1034→          zh: '一名字与一固定形容词被系于一人心；形容词必须被洗去。',
+  1035→        },
+  1036→      },
+  1037→      {
+  1038→        pointKey: 'tp-first-letter',
+  1039→        label: { en: 'The First Letter', zh: '首封书信' },
+  1040→        slotId: 's4-letter',
+  1041→        irreversibleChange: {
+  1042→          en: 'A fact the misreader had held certain is shown false; future misreadings must now negotiate around it.',
+  1043→          zh: '误读者所持之确定事实被证伪；日后误读必须绕之而行。',
+  1044→        },
+  1045→      },
+  1046→      {
+  1047→        pointKey: 'tp-second-letter',
+  1048→        label: { en: 'The Second Letter', zh: '次封书信' },
+  1049→        slotId: 's6-second-letter',
+  1050→        irreversibleChange: {
+  1051→          en: 'Both principals have now revised in writing; neither can return to the prior contempt without acknowledging the revision.',
+  1052→          zh: '两位主角皆已书面修正；任何一方无法在不承认修正的前提下重返昔日轻蔑。',
+  1053→        },
+  1054→      },
+  1055→    ],
+  1056→    parameterSlots: STANDARD_PARAMETER_SLOTS,
+  1057→    invariants: [
+  1058→      {
+  1059→        code: 'INV-MIRRORED-MISREADING',
+  1060→        spec: 'principalA.misreading == mirrorOf(principalB.misreading)',
+  1061→        message: {
+  1062→          en: 'The two principals\' initial misreadings must be structural mirrors — what one admires, the other despises.',
+  1063→          zh: '两位主角之初始误读必须结构上互为镜像——一方所慕，另一方所恶。',
+  1064→        },
+  1065→      },
+  1066→      {
+  1067→        code: 'INV-TWO-LETTERS',
+  1068→        spec: 'letterCount == 2 && secondLetter.references(firstLetter)',
+  1069→        message: {
+  1070→          en: 'Exactly two letters must drive the arc; the second must explicitly reference the first.',
+  1071→          zh: '恰好两封书信推动弧线；第二封必须显式引用第一封。',
+  1072→        },
+  1073→      },
+  1074→      {
+  1075→        code: 'INV-THIRD-PARTY-MISREADS',
+  1076→        spec: 'fallingAction.thirdParty.conclusion == false',
+  1077→        message: {
+  1078→          en: 'A third party must misread the final approach — and be wrong. The comedy requires at least one fool at the curtain.',
+  1079→          zh: '第三方必须误读终局——且必须错误。喜剧落幕时至少需一愚者。',
+  1080→        },
+  1081→      },
+  1082→    ],
+  1083→  },
+  1084→
+  1085→  /* =========================== 4. SNOW COUNTRY =========================== */
+  1086→  {
+  1087→    id: 'pat-distilled-snowcountry',
+  1088→    patternKey: 'literary-mood-spiral',
+  1089→    name: {
+  1090→      en: 'Mood Spiral Toward the Bright Night',
+  1091→      zh: '心境螺旋·向明亮之夜',
+  1092→    },
+  1093→    family: { en: 'Literary mood-piece', zh: '心境文学' },
+  1094→    familyKey: 'literary-mood',
+  1095→    description: {
+  1096→      en: 'A visitor arrives at a snowed-in hot-springs town across repeated seasons. Each visit compresses time, scenery, and a single relationship into a more refined image, until the spiral lands on the Bright Night of the Milky Way — an event that is both death of the beloved and the protagonist\'s arrival at pure seeing.',
+  1097→      zh: '一位访客于雪国温泉小镇跨季节反复抵达。每次到访将时间、景物、单一关系压缩为更精微之像，直至螺旋落于明亮之夜的银河——此事件既为爱人陨落，亦为主角抵达纯粹看见。',
+  1098→    },
+  1099→    provenance: 'distilled',
+  1100→    sourceReferenceIds: ['ref-snowcountry'],
+  1101→    status: 'sealed',
+  1102→    stages: [
+  1103→      {
+  1104→        slotId: 's1-arrival',
+  1105→        role: 'setup',
+  1106→        label: { en: 'The Long Tunnel', zh: '长隧道' },
+  1107→        description: {
+  1108→          en: 'The protagonist crosses a border — the tunnel at the mountain\'s edge — and emerges into a different air. The beloved is named, briefly, by a third party.',
+  1109→          zh: '主角越界——山中隧道之尽头——进入不同之气。爱人由第三方简短命名。',
+  1110→        },
+  1111→        triggerConstraint: {
+  1112→          en: 'Open inside the tunnel; emerge into white. The first sense the protagonist registers must be smell or temperature, not sight.',
+  1113→          zh: '开篇于隧道之中；出隧道即白。主角所感第一义须为嗅觉或温度，而非视觉。',
+  1114→        },
+  1115→        payoffConstraint: {
+  1116→          en: 'The beloved\'s name must arrive via a third party, never the beloved herself.',
+  1117→          zh: '爱人之名必须由第三方传达，而非其本人。',
+  1118→        },
+  1119→        requiredArchetypeKeys: ['arc-visitor'],
+  1120→        keyEventsMin: 1,
+  1121→        keyEventsMax: 1,
+  1122→      },
+  1123→      {
+  1124→        slotId: '2-first-bath',
+  1125→        role: 'inciting-incident',
+  1126→        label: { en: 'The First Bath', zh: '初浴' },
+  1127→        description: {
+  1128→          en: 'The protagonist meets the beloved in the bathhouse. The meeting is physical but unverbal. A glass, a window, a reflection mediates.',
+  1129→          zh: '主角于浴场遇见爱人。相遇是身体的却无言说。玻璃、窗、倒影为之居间。',
+  1130→        },
+  1131→        triggerConstraint: {
+  1132→          en: 'A surface of glass or water must separate the two at their first sustained look.',
+  1133→          zh: '两人首次持续对视时必须有玻璃或水面相隔。',
+  1134→        },
+  1135→        payoffConstraint: {
+  1136→          en: 'End on the beloved\'s hand, glimpsed through that surface.',
+  1137→          zh: '以透过该表面瞥见爱人之手作结。',
+  1138→        },
+  1139→        requiredArchetypeKeys: ['arc-beloved', 'arc-visitor'],
+  1140→        keyEventsMin: 1,
+  1141→        keyEventsMax: 1,
+  1142→      },
+  1143→      {
+  1144→        slotId: 's3-spiral-one',
+  1145→        role: 'rising-action',
+  1146→        label: { en: 'The First Compression', zh: '首次压缩' },
+  1147→        description: {
+  1148→          en: 'A second visit condenses the first season\'s images: the same bath, the same glass, but time has moved. Small objects have changed position; small affections have intensified.',
+  1149→          zh: '第二次到访压缩第一季节之像：同一浴场、同一玻璃，然时间已动。小物件位移；小情愫加深。',
+  1150→        },
+  1151→        triggerConstraint: {
+  1152→          en: 'A specific object must appear in the same position as the previous visit, but altered.',
+  1153→          zh: '一特定物件必须以与上次相同位置出现，然已变。',
+  1154→        },
+  1155→        payoffConstraint: {
+  1156→          en: 'A line of dialogue from the first visit must be repeated, slightly altered.',
+  1157→          zh: '首次到访之一句对话必须被复述，略作变更。',
+  1158→        },
+  1159→        requiredArchetypeKeys: ['arc-beloved'],
+  1160→        keyEventsMin: 2,
+  1161→        keyEventsMax: 3,
+  1162→      },
+  1163→      {
+  1164→        slotId: 's4-rival',
+  1165→        role: 'midpoint',
+  1166→        label: { en: 'The Rival Arrives', zh: '对手出现' },
+  1167→        description: {
+  1168→          en: 'A rival — for the beloved, for the protagonist\'s attention, for the scene\'s silence — enters and disturbs the compression. The mood breaks; refraction begins.',
+  1169→          zh: '一对手——为爱人、为主角之注意、为场景之寂静——进入并扰乱压缩。心境破散；折射开始。',
+  1170→        },
+  1171→        triggerConstraint: {
+  1172→          en: 'The rival must enter by interrupting a sustained silence.',
+  1173→          zh: '对手必须以打断一段持续沉默之方式进入。',
+  1174→        },
+  1175→        payoffConstraint: {
+  1176→          en: 'The beloved must briefly turn toward the rival and away from the protagonist.',
+  1177→          zh: '爱人必须短暂转向对手、离开主角。',
+  1178→        },
+  1179→        requiredArchetypeKeys: ['arc-rival'],
+  1180→        keyEventsMin: 1,
+  1181→        keyEventsMax: 2,
+  1182→      },
+  1183→      {
+  1184→        slotId: 's5-spiral-two',
+  1185→        role: 'rising-action',
+  1186→        label: { en: 'The Second Compression', zh: '二次压缩' },
+  1187→        description: {
+  1188→          en: 'A third visit compresses further. Time is now unreliable. The protagonist begins to mistrust sequence; the prose begins to mistrust event.',
+  1189→          zh: '第三次到访压缩更甚。时间不复可信。主角开始疑序；散文开始疑事。',
+  1190→        },
+  1191→        triggerConstraint: {
+  1192→          en: 'A scene from a previous visit must be recalled as if it were happening now.',
+  1193→          zh: '前次到访之一景必须被当作此刻发生般追忆。',
+  1194→        },
+  1195→        payoffConstraint: {
+  1196→          en: 'The beloved must speak a sentence whose referent is genuinely ambiguous.',
+  1197→          zh: '爱人必须说出一指涉确为暧昧之句。',
+  1198→        },
+  1199→        requiredArchetypeKeys: ['arc-beloved'],
+  1200→        keyEventsMin: 1,
+  1201→        keyEventsMax: 2,
+  1202→      },
+  1203→      {
+  1204→        slotId: 's6-fire',
+  1205→        role: 'crisis',
+  1206→        label: { en: 'The Fire', zh: '火' },
+  1207→        description: {
+  1208→          en: 'A small disaster — a fire in a storehouse, a fall from a roof — severs the protagonist from the spiral\'s logic. Event reasserts itself over mood.',
+  1209→          zh: '一小灾——仓库之火、屋顶之坠——将主角从螺旋之逻辑中切断。事件重压于心境。',
+  1210→        },
+  1211→        triggerConstraint: {
+  1212→          en: 'The disaster must occur at a distance, witnessed only partially.',
+  1213→          zh: '灾难必须发生于远处，仅被部分目睹。',
+  1214→        },
+  1215→        payoffConstraint: {
+  1216→          en: 'The protagonist must run toward the disaster; the beloved must run toward him.',
+  1217→          zh: '主角必须奔向灾难；爱人必须奔向主角。',
+  1218→        },
+  1219→        requiredArchetypeKeys: ['arc-visitor', 'arc-beloved'],
+  1220→        keyEventsMin: 1,
+  1221→        keyEventsMax: 1,
+  1222→      },
+  1223→      {
+  1224→        slotId: 's7-bright-night',
+  1225→        role: 'climax',
+  1226→        label: { en: 'The Bright Night', zh: '明亮之夜' },
+  1227→        description: {
+  1228→          en: 'The fire resolves; the protagonist and beloved look up at the Milky Way pouring down. In this sustained image, the beloved\'s death and the protagonist\'s arrival at pure seeing occur simultaneously. The pattern permits no separation.',
+  1229→          zh: '火势平息；主角与爱人仰望倾泻之银河。在此持续之像中，爱人之死与主角抵达纯粹看见同时发生。模式不容分割。',
+  1230→        },
+  1231→        triggerConstraint: {
+  1232→          en: 'The image of the sky must arrive as a single sustained sentence.',
+  1233→          zh: '天空之像必须以一持续之句抵达。',
+  1234→        },
+  1235→        payoffConstraint: {
+  1236→          en: 'The beloved must be beside the protagonist at the moment the sky is described; whether she is alive at that moment is left unstated.',
+  1237→          zh: '天空被描述之刻爱人必须于主角身侧；其于彼刻是否存活则不予说明。',
+  1238→        },
+  1239→        requiredArchetypeKeys: ['arc-visitor', 'arc-beloved'],
+  1240→        keyEventsMin: 1,
+  1241→        keyEventsMax: 1,
+  1242→      },
+  1243→      {
+  1244→        slotId: 's8-departure',
+  1245→        role: 'epilogue',
+  1246→        label: { en: 'The Long Tunnel, Reversed', zh: '长隧道·反向' },
+  1247→        description: {
+  1248→          en: 'The protagonist returns through the same tunnel, now in reverse. What he carries is not a memory but a different relation to images themselves.',
+  1249→          zh: '主角从同一隧道反向返回。所携非记忆，而是与像本身之不同关系。',
+  1250→        },
+  1251→        triggerConstraint: {
+  1252→          en: 'Open inside the tunnel; the air changes back to the world\'s.',
+  1253→          zh: '开篇于隧道之中；空气变回世界之空气。',
+  1254→        },
+  1255→        payoffConstraint: {
+  1256→          en: 'The last sentence must be a description of an image, not a statement about feeling.',
+  1257→          zh: '末句必须为一像之描述，而非情感之陈述。',
+  1258→        },
+  1259→        keyEventsMin: 1,
+  1260→        keyEventsMax: 1,
+  1261→      },
+  1262→    ],
+  1263→    archetypes: [
+  1264→      {
+  1265→        archetypeKey: 'arc-visitor',
+  1266→        label: { en: 'The Visitor', zh: '访客' },
+  1267→        functionSummary: {
+  1268→          en: 'Arrives from the city carrying nothing but the capacity to look. The arc is from looking-without-seeing to seeing-without-possessing.',
+  1269→          zh: '自都市而来，所携唯看之能。其弧线由看而不见走向见而不据。',
+  1270→        },
+  1271→        mandatoryAtRoles: ['setup', 'inciting-incident', 'crisis', 'climax', 'epilogue'],
+  1272→      },
+  1273→      {
+  1274→        archetypeKey: 'arc-beloved',
+  1275→        label: { en: 'The Beloved', zh: '爱人' },
+  1276→        functionSummary: {
+  1277→          en: 'Named by others, glimpsed through surfaces. Her arc is toward pure image — toward being a scene rather than a person.',
+  1278→          zh: '由他人命名，于表面间瞥见。其弧线走向纯粹之像——走向成为场景而非人。',
+  1279→        },
+  1280→        mandatoryAtRoles: ['inciting-incident', 'rising-action', 'crisis', 'climax'],
+  1281→      },
+  1282→      {
+  1283→        archetypeKey: 'arc-rival',
+  1284→        label: { en: 'The Rival', zh: '对手' },
+  1285→        functionSummary: {
+  1286→          en: 'Brings event into mood. His presence forces the compression to begin again on harder material.',
+  1287→          zh: '将事件带入心境。其存在迫使压缩于更硬之材料上重新开始。',
+  1288→        },
+  1289→        mandatoryAtRoles: ['midpoint'],
+  1290→      },
+  1291→      {
+  1292→        archetypeKey: 'arc-third-witness',
+  1293→        label: { en: 'The Third Witness', zh: '第三见证者' },
+  1294→        functionSummary: {
+  1295→          en: 'A landlady, a maid, a relative — names the beloved, names the loss. Speaks when the principals cannot.',
+  1296→          zh: '一女房东、一女佣、一亲族——命名爱人，命名失去。于主角不能言时言。',
+  1297→        },
+  1298→        mandatoryAtRoles: ['setup', 'epilogue'],
+  1299→      },
+  1300→    ],
+  1301→    turningPoints: [
+  1302→      {
+  1303→        pointKey: 'tp-tunnel-in',
+  1304→        label: { en: 'Tunnel · In', zh: '隧道·入' },
+  1305→        slotId: 's1-arrival',
+  1306→        irreversibleChange: {
+  1307→          en: 'The protagonist crosses into the snow country; return will require a second crossing.',
+  1308→          zh: '主角越入雪国；归途将需第二次越界。',
+  1309→        },
+  1310→      },
+  1311→      {
+  1312→        pointKey: 'tp-rival-enters',
+  1313→        label: { en: 'Rival Enters', zh: '对手入' },
+  1314→        slotId: 's4-rival',
+  1315→        irreversibleChange: {
+  1316→          en: 'The dyad is broken; the spiral must now incorporate disturbance rather than refine stillness.',
+  1317→          zh: '二元破裂；螺旋自此必须吸纳扰动而非精炼静寂。',
+  1318→        },
+  1319→      },
+  1320→      {
+  1321→        pointKey: 'tp-bright-night',
+  1322→        label: { en: 'Bright Night', zh: '明亮之夜' },
+  1323→        slotId: 's7-bright-night',
+  1324→        irreversibleChange: {
+  1325→          en: 'The image of the Milky Way is established; the protagonist cannot return to a state of un-seeing.',
+  1326→          zh: '银河之像确立；主角无法重返未见之状态。',
+  1327→        },
+  1328→      },
+  1329→    ],
+  1330→    parameterSlots: STANDARD_PARAMETER_SLOTS,
+  1331→    invariants: [
+  1332→      {
+  1333→        code: 'INV-MOOD-OVER-EVENT',
+  1334→        spec: 'imageDensityPerChapter >= 0.6 && eventDensityPerChapter <= 0.3',
+  1335→        message: {
+  1336→          en: 'Images must dominate events. Pattern fails if any chapter contains more named events than sensory images.',
+  1337→          zh: '像必须压倒事件。任何一章之具名事件多于感官之像即模式失效。',
+  1338→        },
+  1339→      },
+  1340→      {
+  1341→        code: 'INV-TUNNEL-BOOKENDS',
+  1342→        spec: 'opening.passage == closing.passage == "long tunnel"',
+  1343→        message: {
+  1344→          en: 'The same long tunnel must be the protagonist\'s threshold in and out — no other exit is permitted.',
+  1345→          zh: '同一长隧道必须作为主角出入之阈——不允许其他出口。',
+  1346→        },
+  1347→      },
+  1348→      {
+  1349→        code: 'INV-BRIGHT-NIGHT-UNDECIDED',
+  1350→        spec: 'climax.belovedAliveAtMomentOfImage == undefined',
+  1351→        message: {
+  1352→          en: 'The pattern requires the Bright Night image to leave the beloved\'s state at that moment genuinely undecidable.',
+  1353→          zh: '模式要求明亮之夜之像使其时爱人之状态真正不可判定。',
+  1354→        },
+  1355→      },
+  1356→    ],
+  1357→  },
+  1358→
+  1359→  /* =========================== 5. SYSTEM EMPEROR =========================== */
+  1360→  {
+  1361→    id: 'pat-distilled-systememperor',
+  1362→    patternKey: 'system-stream-ascension',
+  1363→    name: {
+  1364→      en: 'System-Stream Ascension',
+  1365→      zh: '系统流升维',
+  1366→    },
+  1367→    family: { en: 'System-stream webnovel', zh: '系统流网文' },
+  1368→    familyKey: 'system-stream',
+  1369→    description: {
+  1370→      en: 'A protagonist receives a System — a personalized game-like overlay on reality that grants quests, levels, and rewards — and ascends through hierarchical stages of worldly power. Each stage is closed by a system-acknowledged rank-up. The protagonist is the System\'s instrument and its rival; the world is a ladder; morality is deprecated.',
+  1371→      zh: '主角获得一"系统"——加于现实之上的个性化游戏化层，提供任务、等级、奖励——并依世界权力阶层攀爬。每阶段以系统认证之升阶闭合。主角既是系统之器，亦是系统之敌；世界为梯；道德已弃用。',
+  1372→    },
+  1373→    provenance: 'distilled',
+  1374→    sourceReferenceIds: ['ref-systememperor'],
+  1375→    status: 'sealed',
+  1376→    stages: [
+  1377→      {
+  1378→        slotId: 's1-activation',
+  1379→        role: 'inciting-incident',
+  1380→        label: { en: 'System Activation', zh: '系统激活' },
+  1381→        description: {
+  1382→          en: 'A moment of humiliation or near-death triggers the System\'s first appearance as a floating overlay. The protagonist accepts the contract — usually by failing to refuse.',
+  1383→          zh: '一屈辱或近死时刻触发系统作为浮空层首次出现。主角接受契约——通常以未能拒绝之方式。',
+  1384→        },
+  1385→        triggerConstraint: {
+  1386→          en: 'Open at the lowest point of the protagonist\'s life: fired, beaten, betrayed.',
+  1387→          zh: '开篇于主角人生最低点：被解雇、被殴打、被背叛。',
+  1388→        },
+  1389→        payoffConstraint: {
+  1390→          en: 'The System\'s welcome message must be quoted in monospace.',
+  1391→          zh: '系统之欢迎信息必须以等宽字体引用。',
+  1392→        },
+  1393→        requiredArchetypeKeys: ['arc-awakened-one'],
+  1394→        keyEventsMin: 1,
+  1395→        keyEventsMax: 1,
+  1396→      },
+  1397→      {
+  1398→        slotId: 's2-tutorial',
+  1399→        role: 'setup',
+  1400→        label: { en: 'Tutorial Quest', zh: '新手任务' },
+  1401→        description: {
+  1402→          en: 'The first quest is trivial but tests whether the protagonist will kill — usually an insect, sometimes a person. The pattern requires the protagonist to cross that line within this stage.',
+  1403→          zh: '首个任务微不足道，但测试主角是否愿杀——通常一虫，偶尔一人。模式要求主角于此阶段跨过该线。',
+  1404→        },
+  1405→        triggerConstraint: {
+  1406→          en: 'A quest panel must appear with a checkbox and a reward preview.',
+  1407→          zh: '一任务面板必须出现，附带复选框与奖励预览。',
+  1408→        },
+  1409→        payoffConstraint: {
+  1410→          en: 'The protagonist must perform the kill in a single unhesitating motion.',
+  1411→          zh: '主角必须以一毫不犹豫之动作完成击杀。',
+  1412→        },
+  1413→        requiredArchetypeKeys: ['arc-awakened-one'],
+  1414→        keyEventsMin: 1,
+  1415→        keyEventsMax: 2,
+  1416→      },
+  1417→      {
+  1418→        slotId: 's3-tier-one',
+  1419→        role: 'rising-action',
+  1420→        label: { en: 'Tier One · The Local Arena', zh: '一阶·地方擂台' },
+  1421→        description: {
+  1422→          en: 'The protagonist enters a bounded local arena — a sect, a school, a city tier — and dominates it. The first rival-system-holder appears.',
+  1423→          zh: '主角进入一有界地方擂台——一宗门、一学院、一城市层——并称霸之。首位对手系统持有者出现。',
+  1424→        },
+  1425→        triggerConstraint: {
+  1426→          en: 'The arena must have a public leaderboard the protagonist can read.',
+  1427→          zh: '擂台必须有一主角可读之公开排行榜。',
+  1428→        },
+  1429→        payoffConstraint: {
+  1430→          en: 'The protagonist must defeat the local champion with a system-granted ability used in a way the System did not intend.',
+  1431→          zh: '主角必须以系统赐予之能力击败地方冠军，且使用方式为系统未预期。',
+  1432→        },
+  1433→        requiredArchetypeKeys: ['arc-awakened-one', 'arc-rival-holder'],
+  1434→        keyEventsMin: 3,
+  1435→        keyEventsMax: 6,
+  1436→      },
+  1437→      {
+  1438→        slotId: 's4-faction',
+  1439→        role: 'midpoint',
+  1440→        label: { en: 'Faction Offer', zh: '阵营招揽' },
+  1441→        description: {
+  1442→          en: 'A powerful faction offers membership; the System issues a counter-offer. The protagonist\'s choice of which to accept sets the trajectory for the next two tiers.',
+  1443→          zh: '一强势阵营提供成员资格；系统发出反提议。主角之选择决定后两阶轨迹。',
+  1444→        },
+  1445→        triggerConstraint: {
+  1446→          en: 'Both offers must arrive in the same chapter, in writing.',
+  1447→          zh: '两提议必须于同一章、以书面形式到达。',
+  1448→        },
+  1449→        payoffConstraint: {
+  1450→          en: 'The protagonist\'s acceptance speech must include a sentence the System flags as "deviation."',
+  1451→          zh: '主角之接受演讲必须包含一句被系统标记为"偏差"之语。',
+  1452→        },
+  1453→        requiredArchetypeKeys: ['arc-awakened-one', 'arc-faction-broker'],
+  1454→        keyEventsMin: 1,
+  1455→        keyEventsMax: 2,
+  1456→      },
+  1457→      {
+  1458→        slotId: 's5-tier-two',
+  1459→        role: 'rising-action',
+  1460→        label: { en: 'Tier Two · The Regional Arena', zh: '二阶·区域擂台' },
+  1461→        description: {
+  1462→          en: 'A wider arena, harder enemies, a leaderboard the protagonist was a stranger to. The rival-system-holder from Tier One reappears, now allied with the protagonist\'s enemies.',
+  1463→          zh: '更广之擂台，更难之敌，主角曾陌生之排行榜。一阶之对手系统持有者重现，今已与主角之敌结盟。',
+  1464→        },
+  1465→        triggerConstraint: {
+  1466→          en: 'A regional map must be displayed in a system panel.',
+  1467→          zh: '一区域地图必须于系统面板中显示。',
+  1468→        },
+  1469→        payoffConstraint: {
+  1470→          en: 'The protagonist must spare the rival-holder at least once, against system advice.',
+  1471→          zh: '主角至少一次违系统之建议而饶过对手。',
+  1472→        },
+  1473→        requiredArchetypeKeys: ['arc-awakened-one', 'arc-rival-holder'],
+  1474→        keyEventsMin: 3,
+  1475→        keyEventsMax: 6,
+  1476→      },
+  1477→      {
+  1478→        slotId: 's6-secret',
+  1479→        role: 'crisis',
+  1480→        label: { en: 'The Hidden Cost', zh: '隐秘代价' },
+  1481→        description: {
+  1482→          en: 'The protagonist discovers what the System extracts in exchange for power — usually the protagonist\'s emotional range, future memories, or the right to be remembered by name.',
+  1483→          zh: '主角发现系统于力量之交换中所索取之物——通常是主角之情感范围、未来记忆、或被以名记忆之权利。',
+  1484→        },
+  1485→        triggerConstraint: {
+  1486→          en: 'A system log must be displayed retroactively, showing deductions the protagonist never consciously authorized.',
+  1487→          zh: '一系统日志必须追溯显示，呈现主角从未明确授权之扣减。',
+  1488→        },
+  1489→        payoffConstraint: {
+  1490→          en: 'The protagonist must briefly consider destroying the System; the System must briefly consider replacing him.',
+  1491→          zh: '主角必须短暂考虑毁掉系统；系统必须短暂考虑替换他。',
+  1492→        },
+  1493→        requiredArchetypeKeys: ['arc-awakened-one'],
+  1494→        keyEventsMin: 1,
+  1495→        keyEventsMax: 1,
+  1496→      },
+  1497→      {
+  1498→        slotId: 's7-tier-three',
+  1499→        role: 'climax',
+  1500→        label: { en: 'Tier Three · The Continental Arena', zh: '三阶·大陆擂台' },
+  1501→        description: {
+  1502→          en: 'The protagonist contests a continental-scale arena. The rival-holder returns as ally; the faction that the protagonist refused returns as enemy. The protagonist\'s system rank surpasses the System\'s own initial estimate.',
+  1503→          zh: '主角争夺大陆级擂台。对手持有者回归为盟；曾被主角拒绝之阵营回归为敌。主角之系统等级超越系统自身之初始估计。',
+  1504→        },
+  1505→        triggerConstraint: {
+  1506→          en: 'The climactic battle must be displayed in split screen: physical combat and system log simultaneously.',
+  1507→          zh: '高潮之战必须以分屏呈现：物理战斗与系统日志同时。',
+  1508→        },
+  1509→        payoffConstraint: {
+  1510→          en: 'The protagonist\'s final blow must be landed with an ability the System has marked "deprecated."',
+  1511→          zh: '主角之最后一击必须以一被系统标记为"已弃用"之能力完成。',
+  1512→        },
+  1513→        requiredArchetypeKeys: ['arc-awakened-one', 'arc-rival-holder', 'arc-faction-broker'],
+  1514→        keyEventsMin: 1,
+  1515→        keyEventsMax: 2,
+  1516→      },
+  1517→      {
+  1518→        slotId: 's8-ascension',
+  1519→        role: 'epilogue',
+  1520→        label: { en: 'Ascension Beyond System', zh: '超越系统之升维' },
+  1521→        description: {
+  1522→          en: 'The protagonist exceeds the System\'s design range. The System offers a final choice: merge, succeed, or release. The pattern permits any choice, but requires the choice be made in writing.',
+  1523→          zh: '主角超越系统之设计范围。系统提供最终选择：合、继、或释。模式容许任何选择，但要求选择以书面作出。',
+  1524→        },
+  1525→        triggerConstraint: {
+  1526→          en: 'A system dialogue must present three buttons, labeled.',
+  1527→          zh: '一系统对话必须呈现三枚按钮，各有标签。',
+  1528→        },
+  1529→        payoffConstraint: {
+  1530→          en: 'The closing line must be the protagonist\'s written acceptance, quoted.',
+  1531→          zh: '末行必须为引用之主角书面接受。',
+  1532→        },
+  1533→        keyEventsMin: 1,
+  1534→        keyEventsMax: 1,
+  1535→      },
+  1536→    ],
+  1537→    archetypes: [
+  1538→      {
+  1539→        archetypeKey: 'arc-awakened-one',
+  1540→        label: { en: 'The Awakened One', zh: '觉醒者' },
+  1541→        functionSummary: {
+  1542→          en: 'Humiliated at open, ascendant at close. The arc is a continuous exchange of personality for rank.',
+  1543→          zh: '开篇受辱，结尾登顶。其弧线为人格与等级之持续交换。',
+  1544→        },
+  1545→        mandatoryAtRoles: ['inciting-incident', 'setup', 'rising-action', 'midpoint', 'crisis', 'climax', 'epilogue'],
+  1546→      },
+  1547→      {
+  1548→        archetypeKey: 'arc-rival-holder',
+  1549→        label: { en: 'The Rival Holder', zh: '对手持有者' },
+  1550→        functionSummary: {
+  1551→          en: 'Carries a competing System. Begins as enemy, ends as ally; the inversion is the protagonist\'s gauge of his own growth.',
+  1552→          zh: '携一竞争之系统。始为敌，终为盟；此反转即主角衡量自身成长之尺。',
+  1553→        },
+  1554→        mandatoryAtRoles: ['rising-action', 'climax'],
+  1555→      },
+  1556→      {
+  1557→        archetypeKey: 'arc-faction-broker',
+  1558→        label: { en: 'The Faction Broker', zh: '阵营中介' },
+  1559→        functionSummary: {
+  1560→          en: 'Personifies worldly power. Appears twice — offering membership, then returning as enemy — and defines the protagonist\'s relation to power itself.',
+  1561→          zh: '世俗权力之化身。两次出现——一次提供成员资格，一次作为敌人回归——界定主角与权力本身之关系。',
+  1562→        },
+  1563→        mandatoryAtRoles: ['midpoint', 'climax'],
+  1564→      },
+  1565→      {
+  1566→        archetypeKey: 'arc-system-voice',
+  1567→        label: { en: 'The System Voice', zh: '系统之声' },
+  1568→        functionSummary: {
+  1569→          en: 'Speaks only in monospace panels. The arc is from instrument to interlocutor to (possibly) defeated equal.',
+  1570→          zh: '仅以等宽面板说话。其弧线由器走向对话者走向（可能之）被击败之对等者。',
+  1571→        },
+  1572→        mandatoryAtRoles: ['inciting-incident', 'crisis', 'epilogue'],
+  1573→      },
+  1574→    ],
+  1575→    turningPoints: [
+  1576→      {
+  1577→        pointKey: 'tp-activation',
+  1578→        label: { en: 'Activation', zh: '激活' },
+  1579→        slotId: 's1-activation',
+  1580→        irreversibleChange: {
+  1581→          en: 'The System is bound to the protagonist; reversal requires the protagonist\'s death or the System\'s destruction.',
+  1582→          zh: '系统与主角绑定；解除需主角之死或系统之毁。',
+  1583→        },
+  1584→      },
+  1585→      {
+  1586→        pointKey: 'tp-faction-choice',
+  1587→        label: { en: 'Faction Choice', zh: '阵营抉择' },
+  1588→        slotId: 's4-faction',
+  1589→        irreversibleChange: {
+  1590→          en: 'The protagonist\'s alignment is locked for the next two tiers; refused factions return as enemies.',
+  1591→          zh: '主角之后两阶之阵营归属被锁定；被拒阵营以敌人身份回归。',
+  1592→        },
+  1593→      },
+  1594→      {
+  1595→        pointKey: 'tp-hidden-cost',
+  1596→        label: { en: 'Hidden Cost Revealed', zh: '隐秘代价揭示' },
+  1597→        slotId: 's6-secret',
+  1598→        irreversibleChange: {
+  1599→          en: 'The protagonist can no longer act as if the System is free; future actions must negotiate the debt.',
+  1600→          zh: '主角无法再以系统为免费而行动；日后行动必须与债务谈判。',
+  1601→        },
+  1602→      },
+  1603→      {
+  1604→        pointKey: 'tp-beyond-system',
+  1605→        label: { en: 'Beyond System', zh: '超越系统' },
+  1606→        slotId: 's8-ascension',
+  1607→        irreversibleChange: {
+  1608→          en: 'The protagonist exits the System\'s design range; the world is now something he can rewrite, not climb.',
+  1609→          zh: '主角出离系统之设计范围；世界成为可改写之物，而非可攀者。',
+  1610→        },
+  1611→      },
+  1612→    ],
+  1613→    parameterSlots: STANDARD_PARAMETER_SLOTS,
+  1614→    invariants: [
+  1615→      {
+  1616→        code: 'INV-RANKUP-CLOSURE',
+  1617→        spec: 'every.stage.closesWith == "system-acknowledged rankup"',
+  1618→        message: {
+  1619→          en: 'Every stage must close with a system-acknowledged rank-up event — no informal transitions permitted.',
+  1620→          zh: '每阶段必须以系统认证之升阶事件闭合——不允许非正式过渡。',
+  1621→        },
+  1622→      },
+  1623→      {
+  1624→        code: 'INV-PROTAGONIST-HESITATES-ONCE',
+  1625→        spec: 'count(stageWhere.protagonistRefusesSystemAdvice) >= 1',
+  1626→        message: {
+  1627→          en: 'The protagonist must refuse system advice at least once; the refusal marks the shift from instrument to interlocutor.',
+  1628→          zh: '主角必须至少一次违系统之建议；该拒绝标志由器走向对话者之转变。',
+  1629→        },
+  1630→      },
+  1631→      {
+  1632→        code: 'INV-THREE-TIERS-MINIMUM',
+  1633→        spec: 'tierCount >= 3',
+  1634→        message: {
+  1635→          en: 'Pattern requires at least three escalating arenas; each must be larger, harder, and named differently from the last.',
+  1636→          zh: '模式要求至少三个递升之擂台；每者必须更大、更难，且与前者异名。',
+  1637→        },
+  1638→      },
+  1639→    ],
+  1640→  },
+  1641→]
+  1642→
+  1643→/* -------------------------------------------------------------------------- */
+  1644→/*  AGGREGATED META-PATTERN                                                   */
+  1645→/* -------------------------------------------------------------------------- */
+  1646→/*  Distilled from the family-saga pattern + reused across the meta-pattern  */
+  1647→/*  demo. The AggregationSection animation draws lines from all 5 distilled   */
+  1648→/*  patterns into this single meta-pattern.                                  */
+  1649→/* -------------------------------------------------------------------------- */
+  1650→
+  1651→export const AGGREGATED_PATTERNS: StoryPattern[] = [
+  1652→  {
+  1653→    id: 'pat-aggregated-family-saga',
+  1654→    patternKey: 'family-saga-meta',
+  1655→    name: {
+  1656→      en: 'Family Saga Meta-Pattern',
+  1657→      zh: '家族史诗元模式',
+  1658→    },
+  1659→    family: { en: 'Family saga', zh: '家族史诗' },
+  1660→    familyKey: 'family-saga',
+  1661→    description: {
+  1662→      en: 'Aggregated from 5 distilled family-saga instances (Buddenbrooks-class plus 4 cohort instances in the mockup\'s implied library). Stages with statistical weight ≥4 are confirmed recurring; weight 2-3 are provisional; weight 1 are idiosyncratic and dropped from the sealed meta-pattern.',
+  1663→      zh: '从 5 个家族史诗实例聚合而来（布登勃洛克级 + 模拟库隐含之 4 个同类实例）。统计权重 ≥4 之阶段被确认为高频复现；权重 2-3 为暂定；权重 1 为个别特征，于封存之元模式中剔除。',
+  1664→    },
+  1665→    provenance: 'aggregated',
+  1666→    statisticalWeight: 5,
+  1667→    confidence: 0.84,
+  1668→    status: 'sealed',
+  1669→    stages: [
+  1670→      {
+  1671→        slotId: 'meta-s1-founding',
+  1672→        role: 'setup',
+  1673→        label: { en: 'Founding Consolidation', zh: '奠基巩固' },
+  1674→        description: {
+  1675→          en: 'A public ritual of arrival — a dinner, a baptism, a transaction — establishes the family at its zenith.',
+  1676→          zh: '一场公开之抵达仪式——晚宴、洗礼、交易——使家族立于其顶峰。',
+  1677→        },
+  1678→        triggerConstraint: {
+  1679→          en: 'Open on a public, witnessed event.',
+  1680→          zh: '以一公开、被见证之事件开场。',
+  1681→        },
+  1682→        payoffConstraint: {
+  1683→          en: 'End on a physical artifact that becomes the family\'s talisman.',
+  1684→          zh: '以一成为家族护符之物理物件作结。',
+  1685→        },
+  1686→        requiredArchetypeKeys: ['arc-founding-patriarch'],
+  1687→        keyEventsMin: 2,
+  1688→        keyEventsMax: 4,
+  1689→        weight: 5,
+  1690→      },
+  1691→      {
+  1692→        slotId: 'meta-s2-fracture',
+  1693→        role: 'inciting-incident',
+  1694→        label: { en: 'Peak Fracture', zh: '顶峰裂痕' },
+  1695→        description: {
+  1696→          en: 'At the family\'s highest moment, an internal dissent — marriage choice, artistic turn, religious conversion — cracks the founding consensus.',
+  1697→          zh: '家族鼎盛之际，一内部异见——婚事抉择、艺术转向、宗教改宗——使奠基共识出现裂痕。',
+  1698→        },
+  1699→        triggerConstraint: {
+  1700→          en: 'Place the fracture at a festivity that masks tension.',
+  1701→          zh: '将裂痕安置于掩盖紧张之庆典之中。',
+  1702→        },
+  1703→        payoffConstraint: {
+  1704→          en: 'The dissent must be voiced out loud and visibly overruled.',
+  1705→          zh: '异议必须被公开说出，并可见地被驳回。',
+  1706→        },
+  1707→        requiredArchetypeKeys: ['arc-dissenting-child'],
+  1708→        keyEventsMin: 1,
+  1709→        keyEventsMax: 2,
+  1710→        weight: 5,
+  1711→      },
+  1712→      {
+  1713→        slotId: 'meta-s3-inward-turn',
+  1714→        role: 'rising-action',
+  1715→        label: { en: 'Inward Turn', zh: '转向内在' },
+  1716→        description: {
+  1717→          en: 'Second generation turns toward religion, art, or interiority. The family\'s public competence erodes in proportion to its private refinement.',
+  1718→          zh: '第二代转向宗教、艺术或内在。家族之公共能力以其私人精微之比例为侵蚀。',
+  1719→        },
+  1720→        triggerConstraint: {
+  1721→          en: 'A religious or aesthetic awakening scene followed by a poor practical decision.',
+  1722→          zh: '一段宗教或审美觉醒场景，后接一糟糕之实务决策。',
+  1723→        },
+  1724→        payoffConstraint: {
+  1725→          en: 'A written record — diary, sermon notes — must foreshadow collapse.',
+  1726→          zh: '一书面记录——日记、布道笔记——必须预示崩塌。',
+  1727→        },
+  1728→        requiredArchetypeKeys: ['arc-pious-heir'],
+  1729→        keyEventsMin: 3,
+  1730→        keyEventsMax: 5,
+  1731→        weight: 4,
+  1732→      },
+  1733→      {
+  1734→        slotId: 'meta-s4-reversal',
+  1735→        role: 'midpoint',
+  1736→        label: { en: 'The Reversal Disaster', zh: '逆转之灾' },
+  1737→        description: {
+  1738→          en: 'A single decisive event — bankruptcy, duel, scandal — reverses the trajectory from ascent to descent.',
+  1739→          zh: '一决定性事件——破产、决斗、丑闻——将轨迹由升转降。',
+  1740→        },
+  1741→        triggerConstraint: {
+  1742→          en: 'Locate the event at the symbolic center of the family.',
+  1743→          zh: '将事件安置于家族之象征中心。',
+  1744→        },
+  1745→        payoffConstraint: {
+  1746→          en: 'A character present at the founding must witness and understand the reversal.',
+  1747→          zh: '在场于奠基之角色必须目睹并理解此逆转。',
+  1748→        },
+  1749→        requiredArchetypeKeys: ['arc-witness-elder'],
+  1750→        keyEventsMin: 1,
+  1751→        keyEventsMax: 1,
+  1752→        weight: 4,
+  1753→      },
+  1754→      {
+  1755→        slotId: 'meta-s5-isolation',
+  1756→        role: 'crisis',
+  1757→        label: { en: 'Social Isolation', zh: '社会隔离' },
+  1758→        description: {
+  1759→          en: 'The third generation withdraws from civic life. Old alliances dissolve; the house itself begins to decay.',
+  1760→          zh: '第三代退出公共生活。旧联盟解体；宅邸本身开始衰败。',
+  1761→        },
+  1762→        triggerConstraint: {
+  1763→          en: 'A scene where the family is refused a courtesy once taken for granted.',
+  1764→          zh: '一场家族被拒绝对其曾理所当然之礼遇之场景。',
+  1765→        },
+  1766→        payoffConstraint: {
+  1767→          en: 'The house itself must begin to decay: a room closed, a servant dismissed.',
+  1768→          zh: '宅邸本身必须开始衰败：一屋被闭，一仆被辞。',
+  1769→        },
+  1770→        requiredArchetypeKeys: ['arc-depleted-heir'],
+  1771→        keyEventsMin: 2,
+  1772→        keyEventsMax: 4,
+  1773→        weight: 3,
+  1774→      },
+  1775→      {
+  1776→        slotId: 'meta-s6-last-child',
+  1777→        role: 'climax',
+  1778→        label: { en: 'The Last Child', zh: '末代之子' },
+  1779→        description: {
+  1780→          en: 'A sickly, precocious child of the third generation carries the family\'s accumulated refinement — and accumulated weakness.',
+  1781→          zh: '第三代中一体弱、早慧之孩子承载家族积聚之精微——亦为积聚之脆弱。',
+  1782→        },
+  1783→        triggerConstraint: {
+  1784→          en: 'Show the child reading a forbidden book or asking a forbidden question.',
+  1785→          zh: '让孩子阅读禁书或提出禁忌问题。',
+  1786→        },
+  1787→        payoffConstraint: {
+  1788→          en: 'An elder must articulate, even briefly, that the line ends here.',
+  1789→          zh: '长辈必须简短说出：血脉到此为止。',
+  1790→        },
+  1791→        requiredArchetypeKeys: ['arc-last-child'],
+  1792→        keyEventsMin: 1,
+  1793→        keyEventsMax: 2,
+  1794→        weight: 5,
+  1795→      },
+  1796→      {
+  1797→        slotId: 'meta-s7-quiet-death',
+  1798→        role: 'falling-action',
+  1799→        label: { en: 'Quiet Death', zh: '寂静之死' },
+  1800→        description: {
+  1801→          en: 'The death that closes the line is small, domestic, almost unnoticed by the town.',
+  1802→          zh: '终结血脉之死亡是微小的、家常的、几乎不被镇上注意。',
+  1803→        },
+  1804→        triggerConstraint: {
+  1805→          en: 'Locate the death in the most ordinary room of the most ordinary day.',
+  1806→          zh: '将死亡安置于最平常一日中最平常之房间。',
+  1807→        },
+  1808→        payoffConstraint: {
+  1809→          en: 'The family sign or name must be physically removed.',
+  1810→          zh: '家族招牌或姓氏必须被物理移除。',
+  1811→        },
+  1812→        weight: 4,
+  1813→        keyEventsMin: 1,
+  1814→        keyEventsMax: 1,
+  1815→      },
+  1816→      {
+  1817→        slotId: 'meta-s8-aftermath',
+  1818→        role: 'epilogue',
+  1819→        label: { en: 'Sale of the House', zh: '宅邸出售' },
+  1820→        description: {
+  1821→          en: 'The house is sold to strangers. A surviving narrator inventories the family as it leaves.',
+  1822→          zh: '宅邸被售予陌生人。幸存之叙述者逐一登记被搬走之家族。',
+  1823→        },
+  1824→        triggerConstraint: {
+  1825→          en: 'A stranger\'s hand on a familiar object.',
+  1826→          zh: '陌生人之手放于熟悉之物件上。',
+  1827→        },
+  1828→        payoffConstraint: {
+  1829→          en: 'End on an inventory ledger — the same object that opened the book.',
+  1830→          zh: '以一清点账簿作结——与开篇同一物件。',
+  1831→        },
+  1832→        weight: 3,
+  1833→        keyEventsMin: 1,
+  1834→        keyEventsMax: 2,
+  1835→      },
+  1836→    ],
+  1837→    archetypes: [
+  1838→      {
+  1839→        archetypeKey: 'arc-founding-patriarch',
+  1840→        label: { en: 'The Founding Patriarch', zh: '奠基家主' },
+  1841→        functionSummary: {
+  1842→          en: 'Embodies the founding ethos; his artifact becomes the family\'s talisman.',
+  1843→          zh: '体现奠基精神；其物件成为家族之护符。',
+  1844→        },
+  1845→        mandatoryAtRoles: ['setup'],
+  1846→      },
+  1847→      {
+  1848→        archetypeKey: 'arc-dissenting-child',
+  1849→        label: { en: 'The Dissenting Child', zh: '异见之子' },
+  1850→        functionSummary: {
+  1851→          en: 'Voices the first refusal. Her loss is the price of staying itself.',
+  1852→          zh: '说出第一声拒绝。其失去为保持自身所付之代价。',
+  1853→        },
+  1854→        mandatoryAtRoles: ['inciting-incident'],
+  1855→      },
+  1856→      {
+  1857→        archetypeKey: 'arc-pious-heir',
+  1858→        label: { en: 'The Pious Heir', zh: '虔诚继承人' },
+  1859→        functionSummary: {
+  1860→          en: 'Turns inheritance into interiority. Refinement is also incompetence.',
+  1861→          zh: '将继承内化。精微即无能。',
+  1862→        },
+  1863→        mandatoryAtRoles: ['rising-action'],
+  1864→      },
+  1865→      {
+  1866→        archetypeKey: 'arc-witness-elder',
+  1867→        label: { en: 'The Witness Elder', zh: '见证长辈' },
+  1868→        functionSummary: {
+  1869→          en: 'Saw the founding and the reversal. Living memory, living grief.',
+  1870→          zh: '亲历奠基与逆转。活着之记忆，活着之悲哀。',
+  1871→        },
+  1872→        mandatoryAtRoles: ['midpoint'],
+  1873→      },
+  1874→      {
+  1875→        archetypeKey: 'arc-last-child',
+  1876→        label: { en: 'The Last Child', zh: '末代之子' },
+  1877→        functionSummary: {
+  1878→          en: 'Refinement without continuation. Carries everything learned and nothing transmittable.',
+  1879→          zh: '精微而无以为继。承学一切而无可传。',
+  1880→        },
+  1881→        mandatoryAtRoles: ['climax', 'falling-action'],
+  1882→      },
+  1883→    ],
+  1884→    turningPoints: [
+  1885→      {
+  1886→        pointKey: 'meta-tp-fracture',
+  1887→        label: { en: 'The Fracture', zh: '裂痕' },
+  1888→        slotId: 'meta-s2-fracture',
+  1889→        irreversibleChange: {
+  1890→          en: 'The family\'s self-image as unified is broken; future dissent is now thinkable.',
+  1891→          zh: '家族作为整体之自画像破碎；日后异见自此可被想象。',
+  1892→        },
+  1893→      },
+  1894→      {
+  1895→        pointKey: 'meta-tp-reversal',
+  1896→        label: { en: 'The Reversal', zh: '逆转' },
+  1897→        slotId: 'meta-s4-reversal',
+  1898→        irreversibleChange: {
+  1899→          en: 'Trajectory flips from ascent to descent. Future chapters cannot be written as success.',
+  1900→          zh: '轨迹由升转降。后续章节无法以胜利书写。',
+  1901→        },
+  1902→      },
+  1903→      {
+  1904→        pointKey: 'meta-tp-closing',
+  1905→        label: { en: 'The Closing of the Line', zh: '血脉封口' },
+  1906→        slotId: 'meta-s6-last-child',
+  1907→        irreversibleChange: {
+  1908→          en: 'No heir capable of continuation remains. The story is now an ending.',
+  1909→          zh: '不再有可承继之嗣。故事自此成为一段终结。',
+  1910→        },
+  1911→      },
+  1912→    ],
+  1913→    parameterSlots: STANDARD_PARAMETER_SLOTS,
+  1914→    invariants: [
+  1915→      {
+  1916→        code: 'INV-DECLINE-MONOTONE',
+  1917→        spec: 'familyTrajectory.monotonic == "descending"',
+  1918→        message: {
+  1919→          en: 'Family trajectory must be monotonically descending across generations — no recovery arc.',
+  1920→          zh: '家族轨迹必须在代际间单调下行——不得出现恢复弧线。',
+  1921→        },
+  1922→      },
+  1923→      {
+  1924→        code: 'INV-LEDGER-BOOKENDS',
+  1925→        spec: 'openingArtifact == closingArtifact == "family ledger"',
+  1926→        message: {
+  1927→          en: 'The same ledger book (or its sale) must open and close the pattern.',
+  1928→          zh: '同一账簿（或其出售）必须开启并闭合此模式。',
+  1929→        },
+  1930→      },
+  1931→      {
+  1932→        code: 'INV-LINE-TERMINATES',
+  1933→        spec: 'generationCount >= 3 && finalGeneration.hasNoViableHeir == true',
+  1934→        message: {
+  1935→          en: 'Pattern requires at least three generations; the final generation must produce no viable heir.',
+  1936→          zh: '此模式要求至少三代；末代必须无可承继之嗣。',
+  1937→        },
+  1938→      },
+  1939→    ],
+  1940→  },
+  1941→]
+  1942→
+  1943→/* -------------------------------------------------------------------------- */
+  1944→/*  BUILT-IN PATTERNS                                                         */
+  1945→/* -------------------------------------------------------------------------- */
+  1946→/*  SUBAGENT B: populate this with built-in patterns.                        */
+  1947→/*  Suggested entries (per spec):                                            */
+  1948→/*    - Save the Cat (Snyder)                                                */
+  1949→/*    - Hero's Journey (Campbell)                                            */
+  1950→/*    - Harmon Story Circle                                                  */
+  1951→/*    - Dramatica                                                             */
+  1952→/*    - Truby's 22 Steps                                                      */
+  1953→/*    - 起承转合 (qi-cheng-zhuan-he)                                          */
+  1954→/*    - 序破急 (jo-ha-kyū)                                                   */
+  1955→/*    - 网文系统流 (built-in variant of system-stream)                        */
+  1956→/*    - 网文重生流 (rebirth-stream webnovel)                                  */
+  1957→/*  Each must follow the StoryPattern shape exactly. Use STANDARD_PARAMETER_ */
+  1958→/*  SLOTS for parameterSlots unless the built-in pattern has a genuinely     */
+  1959→/*  different parameter ontology. familyKey should group built-ins together   */
+  1960→/*  where appropriate (e.g., all three webnovel ones could share familyKey    */
+  1961→/*  'webnovel-builtin').                                                      */
+  1962→/* -------------------------------------------------------------------------- */
+  1963→
+  1964→export const BUILT_IN_PATTERNS: StoryPattern[] = [
+  1965→  /* SUBAGENT B: populate this with built-in patterns. See comment above. */
+  1966→]
+  1967→
+  1968→/* -------------------------------------------------------------------------- */
+  1969→/*  LIBRARY AGGREGATOR                                                        */
+  1970→/* -------------------------------------------------------------------------- */
+  1971→
+  1972→/**
+  1973→ * Returns all patterns in the library, in display order:
+  1974→ * built-in first, then distilled, then aggregated.
+  1975→ * Subagent B's PatternLibrarySection should consume this.
+  1976→ */
+  1977→export function getAllPatterns(): StoryPattern[] {
+  1978→  return [...BUILT_IN_PATTERNS, ...DISTILLED_PATTERNS, ...AGGREGATED_PATTERNS]
+  1979→}
+  1980→
+  1981→/* -------------------------------------------------------------------------- */
+  1982→/*  CONVENIENCE HELPERS                                                       */
+  1983→/* -------------------------------------------------------------------------- */
+  1984→
+  1985→/** Look up a pattern by id. */
+  1986→export function findPatternById(id: string): StoryPattern | undefined {
+  1987→  return getAllPatterns().find((p) => p.id === id)
+  1988→}
+  1989→
+  1990→/** Look up a reference document by id. */
+  1991→export function findReferenceById(id: string): ReferenceDocument | undefined {
+  1992→  return SAMPLE_REFERENCES.find((r) => r.id === id)
+  1993→}
+  1994→
+  1995→/** Group patterns by familyKey. Returns a Map. */
+  1996→export function groupPatternsByFamily(): Map<string, StoryPattern[]> {
+  1997→  const m = new Map<string, StoryPattern[]>()
+  1998→  for (const p of getAllPatterns()) {
+  1999→    const list = m.get(p.familyKey) ?? []
+  2000→    list.push(p)
+
+[showing lines 1-2000 of 2005; use offset=2001 with limit to continue reading]

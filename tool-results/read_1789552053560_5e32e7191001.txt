@@ -1,0 +1,443 @@
+     1→import type { TtrpgAuthoringDraftV1 } from "../ttrpg/authoring-contract";
+     2→import type { ChatAuthoringDraftV1 } from '../character-interaction/authoring-contract'
+     3→import type { AvgAuthoringDraftV1, AvgDraftMediaV1 } from '../avg/authoring-contract'
+     4→import Dexie, { type Table } from 'dexie'
+     5→import type {
+     6→  AdaptationProject,
+     7→  AdaptationCausalEdgeV1,
+     8→  AdaptationDecisionV1,
+     9→  AdaptationSourceFactV1,
+    10→  AdaptationSourceUnit,
+    11→  AgentConversation,
+    12→  AgentEvent,
+    13→  AgentRunArtifactRecordV1,
+    14→  AgentRunCheckpointRecord,
+    15→  AgentRunEventRecord,
+    16→  AgentRunRecord,
+    17→  Chapter,
+    18→  Character,
+    19→  CharacterDrivenPlan,
+    20→  CharacterRelation,
+    21→  CodexCategory,
+    22→  CodexEntry,
+    23→  ComicMediaAsset,
+    24→  ComicPage,
+    25→  ComicPagePlanV1,
+    26→  ComicPanel,
+    27→  ComicReviewIssueV1,
+    28→  ComicScriptBeatV1,
+    29→  ComicVisualSubject,
+    30→  CreationReleaseAssetV1,
+    31→  CreationReleaseV1,
+    32→  CreativeRules,
+    33→  CultivationProgress,
+    34→  CultivationSystem,
+    35→  DetailedOutline,
+    36→  EmotionBeatCard,
+    37→  Foreshadow,
+    38→  Geography,
+    39→  HistoricalKeyword,
+    40→  HistoricalTimelineEvent,
+    41→  History,
+    42→  ImportantLocation,
+    43→  ImportFileBlob,
+    44→  ImportJob,
+    45→  ImportLog,
+    46→  ImportSession,
+    47→  InspirationWorkspace,
+    48→  ItemLedgerEntry,
+    49→  MediaBlobObjectRecordV1,
+    50→  MotionDramaAssetBindingV1,
+    51→  MotionDramaAssetSubjectV1,
+    52→  MotionDramaAssetVersionV1,
+    53→  MotionDramaEpisodeV1,
+    54→  MotionDramaProductionV1,
+    55→  MotionDramaPromptOverrideV1,
+    56→  MotionDramaPromptPackV1,
+    57→  MotionDramaReviewIssueV1,
+    58→  MotionDramaScriptSceneV1,
+    59→  MotionDramaSeriesBibleRecordV1,
+    60→  MotionDramaShotReferenceV1,
+    61→  MotionDramaShotV1,
+    62→  NarrativeBeat,
+    63→  NarrativeChoice,
+    64→  NarrativeModule,
+    65→  NarrativeNode,
+    66→  NodeFlow,
+    67→  NodeRunRecord,
+    68→  Note,
+    69→  OutlineNode,
+    70→  OwnershipScopeChangeRecord,
+    71→  PowerSystem,
+    72→  ProductBuildArtifactRecordV1,
+    73→  ProductBuildRecordV1,
+    74→  ProductMediaAsset,
+    75→  ProductMediaBlob,
+    76→  ProductProductionBriefRecordV1,
+    77→  ProductProductionCommandRecordV1,
+    78→  ProductProductionRecordV1,
+    79→  ProductQualityGateReceiptRecordV1,
+    80→  ProductRelease,
+    81→  ProductRuntimeCheckpoint,
+    82→  ProductRuntimeEvent,
+    83→  ProductRuntimeSession,
+    84→  Project,
+    85→  PromptTemplate,
+    86→  PromptWorkflow,
+    87→  Reference,
+    88→  ReferenceAnalysisRun,
+    89→  ReferenceAnalysisSource,
+    90→  ReferenceChunkAnalysis,
+    91→  ScreenplayScene,
+    92→  ScreenplayBeatV1,
+    93→  ScreenplayReviewIssueV1,
+    94→  ScreenplaySceneCardV1,
+    95→  Snapshot,
+    96→  ShortNovelProductionV1,
+    97→  StateCard,
+    98→  StoryArc,
+    99→  StoryCore,
+   100→  StorylineCrossing,
+   101→  StorylineProgress,
+   102→  StoryTimelineEvent,
+   103→  TtrpgRulePackRecordV1,
+   104→  TtrpgRuntimeAssetRequestRecordV1,
+   105→  TtrpgSessionParticipantRecordV2,
+   106→  UserStyleProfile,
+   107→  Work,
+   108→  WorkCharacterBinding,
+   109→  WorkspaceDocumentBindingV1,
+   110→  World,
+   111→  WorldDerivationV1,
+   112→  WorldGroup,
+   113→  WorldGroupLink,
+   114→  WorldNode,
+   115→  WorldRelease,
+   116→  WorldRevision,
+   117→  WorldRulesProfile,
+   118→  Worldview,
+   119→} from '../types'
+   120→import type { AIUsageEntry } from '../ai/usage-log'
+   121→import type { KnowledgeLedgerEntry } from '../types/knowledge-ledger'
+   122→import type { NarrativeSummaryNode } from '../types/narrative-summary'
+   123→import type { RetrievalChunk } from '../types/retrieval-chunk'
+   124→import type { TemporalFact } from '../types/temporal-fact'
+   125→
+   126→export const STORYFORGE_DATABASE_NAME = 'storyforge-core'
+   127→export const STORYFORGE_SCHEMA_VERSION = 10
+   128→
+   129→/** The hard-cutover baseline released before independent creation releases. */
+   130→export const STORYFORGE_STORES_V1 = {
+   131→  projects: '++id, &workspaceUid, workspacePurpose, name, createdAt, updatedAt',
+   132→  worlds: '++id, projectId, identityKind, code, [projectId+identityKind], [projectId+updatedAt]',
+   133→  works: '++id, projectId, worldId, code, &[projectId+code], [projectId+worldId], [worldId+updatedAt], status, activeNarrativeModuleId',
+   134→  workCharacterBindings: '++id, projectId, workId, characterId, &[workId+characterId], [projectId+workId]',
+   135→  ownershipScopeChanges: '++id, projectId, worldId, workId, tableName, recordId, createdAt',
+   136→  worldviews: '++id, projectId',
+   137→  storyCores: '++id, projectId',
+   138→  powerSystems: '++id, projectId',
+   139→  characters: '++id, projectId, name, roleWeight, moralAxis, orderAxis, statusEvidenceChapterId',
+   140→  outlineNodes: '++id, projectId, parentId, order, type',
+   141→  chapters: '++id, projectId, outlineNodeId, order, status',
+   142→  foreshadows: '++id, projectId, status, type',
+   143→  geographies: '++id, projectId',
+   144→  histories: '++id, projectId',
+   145→  creativeRules: '++id, projectId',
+   146→  characterRelations: '++id, projectId, fromCharacterId, toCharacterId',
+   147→  snapshots: '++id, projectId, type, createdAt',
+   148→  references: '++id, projectId, type, createdAt',
+   149→  promptTemplates: '++id, scope, moduleKey, isActive, updatedAt',
+   150→  detailedOutlines: '++id, projectId, outlineNodeId',
+   151→  importJobs: '++id, projectId, type, status, createdAt',
+   152→  importSessions: '++id, projectId, status, updatedAt, fileHash, targetWorldGroupId',
+   153→  importLogs: '++id, sessionId, chunkIndex, createdAt',
+   154→  importFiles: 'sessionId, fileHash, createdAt',
+   155→  promptWorkflows: '++id, scope, isDefault, updatedAt',
+   156→  referenceChunkAnalysis: '++id, referenceId, analysisRunId, [analysisRunId+chunkIndex], chunkIndex',
+   157→  referenceAnalysisRuns: '++id, projectId, referenceId, [referenceId+version], status, updatedAt',
+   158→  referenceAnalysisSources: 'analysisRunId, fileHash, createdAt',
+   159→  stateCards: '++id, projectId, category, entityName, lastChapterId',
+   160→  emotionBeatCards: '++id, projectId, chapterId',
+   161→  storyArcs: '++id, projectId, type, sourceStoryCoreId, producerRunId',
+   162→  notes: '++id, projectId, chapterId, pinned',
+   163→  worldNodes: '++id, projectId, parentId, sortOrder',
+   164→  historicalTimelineEvents: '++id, projectId, era, year',
+   165→  historicalKeywords: '++id, projectId, category, era',
+   166→  importantLocations: '++id, projectId, parentId, sortOrder',
+   167→  worldRulesProfiles: '++id, projectId, worldGroupId',
+   168→  worldGroups: '++id, projectId, type, order',
+   169→  worldGroupLinks: '++id, projectId, fromGroupId, toGroupId',
+   170→  itemLedger: '++id, projectId, itemName, chapterId',
+   171→  storyTimelineEvents: '++id, projectId, chapterId, order',
+   172→  codexCategories: '++id, projectId, domain, parentId, builtInKey, order',
+   173→  codexEntries: '++id, projectId, categoryId, worldGroupId, order, producerRunId',
+   174→  cultivationSystems: '++id, projectId, worldGroupId, name',
+   175→  cultivationProgress: '++id, projectId, worldGroupId, characterId, cultivationSystemId, sourceChapterId, status',
+   176→  characterDrivenPlans: '++id, projectId, status, parentPlanId, updatedAt',
+   177→  inspirationWorkspaces: '++id, projectId, updatedAt',
+   178→  userStyleProfiles: '++id, projectId',
+   179→  aiUsageLog: '++id, projectId, timestamp, category, model',
+   180→  temporalFacts: '++id, projectId, worldGroupId, characterId, locationId, codexEntryId, predicate, status, sourceChapterId',
+   181→  knowledgeLedger: '++id, projectId, worldGroupId, characterId, knowledgeKey, factId, sourceChapterId, status',
+   182→  storylineProgress: '++id, &arcId, projectId, status, lastActiveChapterId',
+   183→  storylineCrossings: '++id, projectId, arcIdA, arcIdB, chapterId',
+   184→  retrievalChunks: '++id, projectId, worldGroupId, sourceChapterId',
+   185→  narrativeSummaryNodes: '++id, projectId, worldGroupId, level, sourceChapterId, sourceOutlineNodeId, status',
+   186→  agentConversations: '++id, projectId, worldGroupId, status, updatedAt',
+   187→  agentEvents: '++id, projectId, conversationId, durableRunId, [conversationId+sequence], kind, createdAt',
+   188→  agentRuns: '++id, projectId, workId, productRuntimeSessionId, productBuildId, worldGroupId, conversationId, parentRunId, &[parentRunId+parentRelation], status, updatedAt',
+   189→  agentRunEvents: '++id, projectId, worldGroupId, runId, &[runId+sequence], type, createdAt',
+   190→  agentRunCheckpoints: '++id, projectId, worldGroupId, runId, &[runId+throughSequence], createdAt',
+   191→  agentRunArtifacts: '++id, projectId, &[projectId+artifactKind+contentHash], contentHash, retentionState, createdAt',
+   192→  nodeFlows: '++id, projectId, worldGroupId, updatedAt',
+   193→  nodeRuns: '++id, projectId, flowId, status, updatedAt',
+   194→  narrativeModules: '++id, projectId, worldId, workId, kind, status, updatedAt',
+   195→  narrativeNodes: '++id, projectId, moduleId, sourceOutlineNodeId, order',
+   196→  narrativeBeats: '++id, projectId, moduleId, nodeKey, &[moduleId+beatKey], [moduleId+nodeKey], speakerCharacterId, order',
+   197→  narrativeChoices: '++id, projectId, moduleId, sourceNodeKey, &[moduleId+choiceKey], [moduleId+sourceNodeKey], targetNodeKey, order',
+   198→  worldRevisions: '++id, projectId, worldId, parentRevisionId, revision, contentHash, updatedAt',
+   199→  worldReleases: '++id, releaseUid, projectId, worldId, revisionId, version, contentHash, createdAt',
+   200→  worldDerivations: '++id, projectId, worldId, sourceWorkspaceUid, sourceWorkCode, sourceContentHash, targetRevisionId, targetReleaseId, createdAt',
+   201→  workspaceDocuments: '++id, projectId, workspaceUid, documentId, &[projectId+documentId], relativePath, &[projectId+relativePath], tableName, recordId, &[projectId+tableName+recordId], worldCode, workCode, lastSyncRunId, updatedAt',
+   202→  adaptationProjects: '++id, projectId, worldId, &workId, sourceWorkId, sourceOutlineRootId, sourceStartChapterId, sourceEndChapterId, medium, status, updatedAt',
+   203→  adaptationSourceUnits: '++id, projectId, workId, adaptationProjectId, &[adaptationProjectId+manifestVersion+sourceUnitKey], [adaptationProjectId+manifestVersion], sourceOutlineNodeId, sourceChapterId, order',
+   204→  screenplayScenes: '++id, projectId, workId, adaptationProjectId, &[adaptationProjectId+stableKey], &[adaptationProjectId+episodeNumber+sceneNumber], [adaptationProjectId+episodeNumber], order, status, updatedAt',
+   205→  comicPages: '++id, projectId, workId, adaptationProjectId, &[adaptationProjectId+stableKey], &[adaptationProjectId+order], chapterNumber, status, updatedAt',
+   206→  comicPanels: '++id, projectId, workId, pageId, &[workId+stableKey], &[pageId+order], status, updatedAt',
+   207→  comicVisualSubjects: '++id, projectId, workId, adaptationProjectId, &[workId+stableKey], kind, characterId, locationRefKey, status, updatedAt',
+   208→  comicMediaAssets: '++id, projectId, workId, adaptationProjectId, &[workId+stableKey], role, origin, panelId, subjectKey, blobObjectId, disposition, requestHash, &[workId+requestHash+candidateIndex], updatedAt',
+   209→  mediaBlobObjects: '++id, projectId, worldId, workId, &[workId+contentHash], mimeType, disposition, storageState, leaseExpiresAt, byteSize, updatedAt',
+   210→  productProductions: '++id, projectId, worldId, workId, productType, &[workId+productionKey], [workId+productType], status, currentProductReleaseId, updatedAt',
+   211→  productProductionBriefs: '++id, projectId, worldId, workId, productionId, &[productionId+revision], &[productionId+briefHash], [productionId+status], sourceWorldReleaseId, sourcePlanHash, confirmedBriefHash, createdAt',
+   212→  productProductionCommands: '++id, projectId, worldId, workId, productionId, &[productionId+commandId], [productionId+status], type, createdAt',
+   213→  productBuilds: '++id, projectId, worldId, workId, productionId, &[productionId+buildNumber], [productionId+status], sourceProductReleaseId, packageHash, previewHash, releasedProductReleaseId, updatedAt',
+   214→  productBuildArtifacts: '++id, projectId, worldId, workId, buildId, &[buildId+artifactKey+version], [buildId+status], [buildId+requirementKey], producerRunId, blobObjectId, contentHash, createdAt',
+   215→  productQualityGateReceipts: '++id, projectId, worldId, workId, buildId, &[buildId+gateId+receiptHash], [buildId+gateId], [buildId+status], gateId, status, createdAt',
+   216→  productReleases: '++id, projectId, worldId, workId, productType, productionKey, worldReleaseId, &[workId+productionKey+version], [workId+productType], contentHash, createdAt',
+   217→  productMediaAssets: '++id, projectId, worldId, workId, ownerKind, productType, productReleaseId, productRuntimeSessionId, &[productReleaseId+assetKey+version], &[productRuntimeSessionId+assetKey+version], [workId+productType], contentHash, updatedAt',
+   218→  productMediaBlobs: '++id, projectId, worldId, workId, &mediaAssetId, blobObjectId',
+   219→  ttrpgRulePacks: '++id, projectId, worldId, workId, &[workId+ruleSystemId+ruleSystemVersion], [workId+status], contentHash, updatedAt',
+   220→  productRuntimeSessions: '++id, projectId, worldGroupId, worldId, workId, productReleaseId, productBuildId, runtimeSourceHash, kind, status, parentSessionId, updatedAt',
+   221→  productRuntimeEvents: '++id, projectId, worldGroupId, sessionId, &[sessionId+sequence], &[sessionId+commandId], type, createdAt',
+   222→  productRuntimeCheckpoints: '++id, projectId, worldGroupId, sessionId, [sessionId+throughSequence], createdAt',
+   223→  ttrpgSessionParticipants: '++id, projectId, worldGroupId, worldId, workId, sessionId, &[sessionId+seatKey], &[sessionId+viewerKey], [sessionId+actorKey], role, controller, assignmentState, updatedAt',
+   224→  ttrpgRuntimeAssetRequests: '++id, projectId, worldGroupId, worldId, workId, sessionId, &[sessionId+requestKey], [sessionId+slotKey], [sessionId+status], priority, mediaAssetId, processorLeaseExpiresAt, updatedAt',
+   225→} as const satisfies Record<string, string>
+   226→
+   227→/** The released short-novel schema, retained as the exact v2 migration step. */
+   228→export const STORYFORGE_STORES_V2 = {
+   229→  ...STORYFORGE_STORES_V1,
+   230→  shortNovelProductions: '++id, projectId, worldId, &workId, phase, currentReleaseId, updatedAt',
+   231→  creationReleases: '++id, projectId, worldId, workId, productKind, &[workId+productKind+version], contentHash, parentReleaseId, createdAt',
+   232→} as const satisfies Record<string, string>
+   233→
+   234→/** The released medium-neutral adaptation analysis schema, retained as the exact v3 migration step. */
+   235→export const STORYFORGE_STORES_V3 = {
+   236→  ...STORYFORGE_STORES_V2,
+   237→  adaptationSourceFacts: '++id, projectId, workId, adaptationProjectId, &[adaptationProjectId+manifestVersion+stableKey], [adaptationProjectId+manifestVersion], kind, authorStatus, updatedAt',
+   238→  adaptationCausalEdges: '++id, projectId, workId, adaptationProjectId, &[adaptationProjectId+manifestVersion+stableKey], [adaptationProjectId+manifestVersion], relation, authorStatus, updatedAt',
+   239→  adaptationDecisions: '++id, projectId, workId, adaptationProjectId, &[adaptationProjectId+manifestVersion+stableKey], [adaptationProjectId+manifestVersion], action, authorStatus, updatedAt',
+   240→} as const satisfies Record<string, string>
+   241→
+   242→/** The released screenplay schema, retained as the exact v4 migration step. */
+   243→export const STORYFORGE_STORES_V4 = {
+   244→  ...STORYFORGE_STORES_V3,
+   245→  screenplayBeats: '++id, projectId, workId, adaptationProjectId, &[adaptationProjectId+manifestVersion+stableKey], [adaptationProjectId+manifestVersion], [adaptationProjectId+episodeNumber], sectionKey, order, updatedAt',
+   246→  screenplaySceneCards: '++id, projectId, workId, adaptationProjectId, &[adaptationProjectId+manifestVersion+stableKey], &[adaptationProjectId+episodeNumber+sceneNumber], [adaptationProjectId+manifestVersion], beatKey, order, updatedAt',
+   247→  screenplayReviewIssues: '++id, projectId, workId, adaptationProjectId, &[adaptationProjectId+manifestVersion+stableKey], [adaptationProjectId+manifestVersion], sceneKey, category, severity, status, updatedAt',
+   248→} as const satisfies Record<string, string>
+   249→
+   250→/** The released v5 schema retained as the exact migration step. */
+   251→export const STORYFORGE_STORES_V5 = {
+   252→  ...STORYFORGE_STORES_V4,
+   253→  comicScriptBeats: '++id, projectId, workId, adaptationProjectId, &[adaptationProjectId+manifestVersion+stableKey], [adaptationProjectId+manifestVersion], chapterNumber, sectionKey, order, updatedAt',
+   254→  comicPagePlans: '++id, projectId, workId, adaptationProjectId, &[adaptationProjectId+manifestVersion+stableKey], &[adaptationProjectId+manifestVersion+pageNumber], [adaptationProjectId+manifestVersion], chapterNumber, order, updatedAt',
+   255→  comicReviewIssues: '++id, projectId, workId, adaptationProjectId, &[adaptationProjectId+manifestVersion+stableKey], [adaptationProjectId+manifestVersion], pageKey, panelKey, category, severity, status, updatedAt',
+   256→  creationReleaseAssets: '++id, projectId, worldId, workId, releaseId, &[releaseId+assetKey], blobObjectId, contentHash, createdAt',
+   257→} as const satisfies Record<string, string>
+   258→
+   259→/** The only writable current schema. V6 adds the independent motion-drama preproduction stores. */
+   260→export const STORYFORGE_STORES_V6 = {
+   261→  ...STORYFORGE_STORES_V5,
+   262→  motionDramaProductions: '++id, projectId, worldId, &workId, adaptationProjectId, phase, currentEpisodeNumber, currentReleaseId, updatedAt',
+   263→  motionDramaSeriesBibles: '++id, projectId, workId, adaptationProjectId, &[adaptationProjectId+version], sourceManifestVersion, contentHash, createdAt',
+   264→  motionDramaEpisodes: '++id, projectId, workId, adaptationProjectId, &[adaptationProjectId+episodeNumber], &[adaptationProjectId+stableKey], manifestVersion, authorStatus, updatedAt',
+   265→  motionDramaScriptScenes: '++id, projectId, workId, adaptationProjectId, &[adaptationProjectId+stableKey], &[adaptationProjectId+episodeNumber+sceneNumber], manifestVersion, episodeNumber, order, updatedAt',
+   266→  motionDramaAssetSubjects: '++id, projectId, workId, adaptationProjectId, &[adaptationProjectId+stableKey], manifestVersion, kind, authorStatus, updatedAt',
+   267→  motionDramaAssetVersions: '++id, projectId, worldId, workId, adaptationProjectId, &[adaptationProjectId+stableKey], &[adaptationProjectId+subjectKey+version], subjectKey, blobObjectId, contentHash, updatedAt',
+   268→  motionDramaAssetBindings: '++id, projectId, workId, adaptationProjectId, episodeNumber, shotKey, subjectKey, assetVersionKey, updatedAt',
+   269→  motionDramaShots: '++id, projectId, workId, adaptationProjectId, &[adaptationProjectId+stableKey], &[adaptationProjectId+episodeNumber+order], manifestVersion, sceneKey, episodeNumber, order, updatedAt',
+   270→  motionDramaShotReferences: '++id, projectId, worldId, workId, adaptationProjectId, &[adaptationProjectId+stableKey], shotKey, role, subjectKey, assetVersionId, blobObjectId, selected, updatedAt',
+   271→  motionDramaPromptOverrides: '++id, projectId, workId, stage, scope, episodeNumber, &[workId+stage+scope+episodeNumber], updatedAt',
+   272→  motionDramaPromptPacks: '++id, projectId, workId, adaptationProjectId, episodeNumber, provider, &[adaptationProjectId+episodeNumber+provider+version], maturity, contentHash, createdAt',
+   273→  motionDramaReviewIssues: '++id, projectId, workId, adaptationProjectId, &[adaptationProjectId+manifestVersion+stableKey], manifestVersion, episodeNumber, sceneKey, shotKey, category, severity, status, updatedAt',
+   274→} as const satisfies Record<string, string>
+   275→
+   276→export const STORYFORGE_STORES_V7 = {
+   277→  ...STORYFORGE_STORES_V6,
+   278→  avgDraftMedia: '++id, projectId, worldId, workId, blobObjectId',
+   279→  avgAuthoringDrafts: '++id, projectId, worldId, &workId, worldReleaseId, productionId, updatedAt',
+   280→} as const satisfies Record<string, string>
+   281→
+   282→export const STORYFORGE_STORES_V8 = {
+   283→  ...STORYFORGE_STORES_V7,
+   284→  // A new revision may restore earlier content. Identity is production + revision;
+   285→  // the content hash remains indexed and immutable, but is not a revision ID.
+   286→  productProductionBriefs: STORYFORGE_STORES_V7.productProductionBriefs.replace('&[productionId+briefHash]', '[productionId+briefHash]'),
+   287→  ttrpgAuthoringDrafts: '++id, projectId, worldId, &workId, worldReleaseId, productionId, savedRulePackId, updatedAt',
+   288→} as const satisfies Record<string, string>
+   289→
+   290→export const STORYFORGE_STORES_V9 = {
+   291→  ...STORYFORGE_STORES_V8,
+   292→  aiTownAuthoringDrafts: '++id, projectId, worldId, &workId, worldReleaseId, productionId, updatedAt',
+   293→} as const satisfies Record<string, string>
+   294→
+   295→export const STORYFORGE_STORES = {
+   296→  ...STORYFORGE_STORES_V9,
+   297→  chatAuthoringDrafts: '++id, projectId, worldId, &workId, worldReleaseId, productionId, updatedAt',
+   298→} as const satisfies Record<string, string>
+   299→
+   300→export class StoryForgeDB extends Dexie {
+   301→  projects!: Table<Project>
+   302→  worlds!: Table<World, number>
+   303→  works!: Table<Work, number>
+   304→  workCharacterBindings!: Table<WorkCharacterBinding, number>
+   305→  ownershipScopeChanges!: Table<OwnershipScopeChangeRecord, number>
+   306→  worldviews!: Table<Worldview>
+   307→  storyCores!: Table<StoryCore>
+   308→  powerSystems!: Table<PowerSystem>
+   309→  characters!: Table<Character>
+   310→  outlineNodes!: Table<OutlineNode>
+   311→  chapters!: Table<Chapter>
+   312→  foreshadows!: Table<Foreshadow>
+   313→  geographies!: Table<Geography>
+   314→  histories!: Table<History>
+   315→  creativeRules!: Table<CreativeRules>
+   316→  characterRelations!: Table<CharacterRelation>
+   317→  snapshots!: Table<Snapshot>
+   318→  references!: Table<Reference>
+   319→  promptTemplates!: Table<PromptTemplate>
+   320→  detailedOutlines!: Table<DetailedOutline>
+   321→  importJobs!: Table<ImportJob>
+   322→  importSessions!: Table<ImportSession>
+   323→  importLogs!: Table<ImportLog>
+   324→  importFiles!: Table<ImportFileBlob, number>
+   325→  promptWorkflows!: Table<PromptWorkflow>
+   326→  referenceChunkAnalysis!: Table<ReferenceChunkAnalysis, number>
+   327→  referenceAnalysisRuns!: Table<ReferenceAnalysisRun, number>
+   328→  referenceAnalysisSources!: Table<ReferenceAnalysisSource, number>
+   329→  stateCards!: Table<StateCard, number>
+   330→  emotionBeatCards!: Table<EmotionBeatCard, number>
+   331→  storyArcs!: Table<StoryArc, number>
+   332→  notes!: Table<Note, number>
+   333→  worldNodes!: Table<WorldNode, number>
+   334→  historicalTimelineEvents!: Table<HistoricalTimelineEvent, number>
+   335→  historicalKeywords!: Table<HistoricalKeyword, number>
+   336→  importantLocations!: Table<ImportantLocation, number>
+   337→  worldRulesProfiles!: Table<WorldRulesProfile, number>
+   338→  worldGroups!: Table<WorldGroup, number>
+   339→  worldGroupLinks!: Table<WorldGroupLink, number>
+   340→  itemLedger!: Table<ItemLedgerEntry, number>
+   341→  storyTimelineEvents!: Table<StoryTimelineEvent, number>
+   342→  codexCategories!: Table<CodexCategory, number>
+   343→  codexEntries!: Table<CodexEntry, number>
+   344→  cultivationSystems!: Table<CultivationSystem, number>
+   345→  cultivationProgress!: Table<CultivationProgress, number>
+   346→  characterDrivenPlans!: Table<CharacterDrivenPlan, number>
+   347→  inspirationWorkspaces!: Table<InspirationWorkspace, number>
+   348→  userStyleProfiles!: Table<UserStyleProfile, number>
+   349→  aiUsageLog!: Table<AIUsageEntry, number>
+   350→  temporalFacts!: Table<TemporalFact, number>
+   351→  knowledgeLedger!: Table<KnowledgeLedgerEntry, number>
+   352→  storylineProgress!: Table<StorylineProgress, number>
+   353→  storylineCrossings!: Table<StorylineCrossing, number>
+   354→  retrievalChunks!: Table<RetrievalChunk, number>
+   355→  narrativeSummaryNodes!: Table<NarrativeSummaryNode, number>
+   356→  agentConversations!: Table<AgentConversation, number>
+   357→  agentEvents!: Table<AgentEvent, number>
+   358→  agentRuns!: Table<AgentRunRecord, number>
+   359→  agentRunEvents!: Table<AgentRunEventRecord, number>
+   360→  agentRunCheckpoints!: Table<AgentRunCheckpointRecord, number>
+   361→  agentRunArtifacts!: Table<AgentRunArtifactRecordV1, number>
+   362→  nodeFlows!: Table<NodeFlow, number>
+   363→  nodeRuns!: Table<NodeRunRecord, number>
+   364→  narrativeModules!: Table<NarrativeModule, number>
+   365→  narrativeNodes!: Table<NarrativeNode, number>
+   366→  narrativeBeats!: Table<NarrativeBeat, number>
+   367→  narrativeChoices!: Table<NarrativeChoice, number>
+   368→  worldRevisions!: Table<WorldRevision, number>
+   369→  worldReleases!: Table<WorldRelease, number>
+   370→  worldDerivations!: Table<WorldDerivationV1, number>
+   371→  workspaceDocuments!: Table<WorkspaceDocumentBindingV1, number>
+   372→  adaptationProjects!: Table<AdaptationProject, number>
+   373→  adaptationSourceUnits!: Table<AdaptationSourceUnit, number>
+   374→  adaptationSourceFacts!: Table<AdaptationSourceFactV1, number>
+   375→  adaptationCausalEdges!: Table<AdaptationCausalEdgeV1, number>
+   376→  adaptationDecisions!: Table<AdaptationDecisionV1, number>
+   377→  screenplayBeats!: Table<ScreenplayBeatV1, number>
+   378→  screenplaySceneCards!: Table<ScreenplaySceneCardV1, number>
+   379→  screenplayReviewIssues!: Table<ScreenplayReviewIssueV1, number>
+   380→  screenplayScenes!: Table<ScreenplayScene, number>
+   381→  comicScriptBeats!: Table<ComicScriptBeatV1, number>
+   382→  comicPagePlans!: Table<ComicPagePlanV1, number>
+   383→  comicReviewIssues!: Table<ComicReviewIssueV1, number>
+   384→  comicPages!: Table<ComicPage, number>
+   385→  comicPanels!: Table<ComicPanel, number>
+   386→  comicVisualSubjects!: Table<ComicVisualSubject, number>
+   387→  comicMediaAssets!: Table<ComicMediaAsset, number>
+   388→  mediaBlobObjects!: Table<MediaBlobObjectRecordV1, number>
+   389→  productProductions!: Table<ProductProductionRecordV1, number>
+   390→  productProductionBriefs!: Table<ProductProductionBriefRecordV1, number>
+   391→  productProductionCommands!: Table<ProductProductionCommandRecordV1, number>
+   392→  productBuilds!: Table<ProductBuildRecordV1, number>
+   393→  productBuildArtifacts!: Table<ProductBuildArtifactRecordV1, number>
+   394→  productQualityGateReceipts!: Table<ProductQualityGateReceiptRecordV1, number>
+   395→  productReleases!: Table<ProductRelease, number>
+   396→  productMediaAssets!: Table<ProductMediaAsset, number>
+   397→  productMediaBlobs!: Table<ProductMediaBlob, number>
+   398→  ttrpgRulePacks!: Table<TtrpgRulePackRecordV1, number>
+   399→  productRuntimeSessions!: Table<ProductRuntimeSession, number>
+   400→  productRuntimeEvents!: Table<ProductRuntimeEvent, number>
+   401→  productRuntimeCheckpoints!: Table<ProductRuntimeCheckpoint, number>
+   402→  ttrpgSessionParticipants!: Table<TtrpgSessionParticipantRecordV2, number>
+   403→  ttrpgRuntimeAssetRequests!: Table<TtrpgRuntimeAssetRequestRecordV1, number>
+   404→  shortNovelProductions!: Table<ShortNovelProductionV1, number>
+   405→  creationReleases!: Table<CreationReleaseV1, number>
+   406→  creationReleaseAssets!: Table<CreationReleaseAssetV1, number>
+   407→  avgDraftMedia!: Table<AvgDraftMediaV1, number>
+   408→  aiTownAuthoringDrafts!: Table<import("../ai-town/authoring-contract").AiTownAuthoringDraftV1, number>
+   409→  ttrpgAuthoringDrafts!: Table<TtrpgAuthoringDraftV1, number>
+   410→  chatAuthoringDrafts!: Table<ChatAuthoringDraftV1, number>
+   411→  avgAuthoringDrafts!: Table<AvgAuthoringDraftV1, number>
+   412→  motionDramaProductions!: Table<MotionDramaProductionV1, number>
+   413→  motionDramaSeriesBibles!: Table<MotionDramaSeriesBibleRecordV1, number>
+   414→  motionDramaEpisodes!: Table<MotionDramaEpisodeV1, number>
+   415→  motionDramaScriptScenes!: Table<MotionDramaScriptSceneV1, number>
+   416→  motionDramaAssetSubjects!: Table<MotionDramaAssetSubjectV1, number>
+   417→  motionDramaAssetVersions!: Table<MotionDramaAssetVersionV1, number>
+   418→  motionDramaAssetBindings!: Table<MotionDramaAssetBindingV1, number>
+   419→  motionDramaShots!: Table<MotionDramaShotV1, number>
+   420→  motionDramaShotReferences!: Table<MotionDramaShotReferenceV1, number>
+   421→  motionDramaPromptOverrides!: Table<MotionDramaPromptOverrideV1, number>
+   422→  motionDramaPromptPacks!: Table<MotionDramaPromptPackV1, number>
+   423→  motionDramaReviewIssues!: Table<MotionDramaReviewIssueV1, number>
+   424→
+   425→  constructor(databaseName = STORYFORGE_DATABASE_NAME) {
+   426→    super(databaseName)
+   427→    this.version(1).stores(STORYFORGE_STORES_V1)
+   428→    this.version(2).stores(STORYFORGE_STORES_V2)
+   429→    this.version(3).stores(STORYFORGE_STORES_V3)
+   430→    this.version(4).stores(STORYFORGE_STORES_V4)
+   431→    this.version(5).stores(STORYFORGE_STORES_V5)
+   432→    this.version(6).stores(STORYFORGE_STORES_V6)
+   433→    this.version(7).stores(STORYFORGE_STORES_V7)
+   434→    this.version(8).stores({ ...STORYFORGE_STORES_V8, chatAuthoringDrafts: STORYFORGE_STORES.chatAuthoringDrafts })
+   435→    // The chat branch also shipped a v8 schema. Preserve its existing draft store
+   436→    // through the v9 bridge; v10 adds it for databases already running town v9.
+   437→    this.version(9).stores({ ...STORYFORGE_STORES_V9, chatAuthoringDrafts: STORYFORGE_STORES.chatAuthoringDrafts })
+   438→    this.version(STORYFORGE_SCHEMA_VERSION).stores(STORYFORGE_STORES)
+   439→  }
+   440→}
+   441→
+   442→export const db = new StoryForgeDB()
+   443→

@@ -1,0 +1,722 @@
+     1→import { estimateTokens } from '../ai/context-budget'
+     2→import { sha256Text } from '../ai/chapter-memory/text-normalization'
+     3→import { AGENT_TOOL_SCHEMA_HASH_V1 } from '../agent/execution-binding'
+     4→import { runReadOnlyAgent, type AgentModelAdapter, type ReadOnlyAgentResult } from '../agent/runner'
+     5→import type { AgentSkillDefinitionV1 } from '../agent/skill-registry'
+     6→import type { AgentToolResult } from '../agent/types'
+     7→import { hashCanonicalValue } from '../agent/run/hash'
+     8→import { CONTEXT_SOURCES } from '../registry/context-sources'
+     9→import type {
+    10→  ContextPacketV1,
+    11→  ContextAccessPolicyV1,
+    12→  ContextResourceDescriptorV1,
+    13→  ContextSufficiencyObligationV1,
+    14→  ContextSufficiencyReportV1,
+    15→  ContextTimeRangeV1,
+    16→  FrozenResourceScopeV1,
+    17→  RetrievalDecisionV1,
+    18→  RetrievalQueryTraceV1,
+    19→  RetrievalTraceV1,
+    20→} from '../registry/types'
+    21→import type { WorkspaceScope } from '../types'
+    22→import {
+    23→  createContextGatewayContractSnapshotV1,
+    24→  createContextPacketV1,
+    25→  createContextSufficiencyReportV1,
+    26→  createRetrievalTraceV1,
+    27→  filterContextResourcePageV1,
+    28→  assertResourcePageV1,
+    29→} from './contracts'
+    30→import {
+    31→  inspectContextGatewayManifestFreshnessV1,
+    32→  verifyContextGatewayCandidateEvidenceV1,
+    33→  type ContextGatewaySourceSnapshotInputV1,
+    34→  type ContextGatewayToolTranscriptInputV1,
+    35→} from './attempt-evidence'
+    36→import {
+    37→  CONTEXT_SELECTOR_VERSION_V1,
+    38→  contextSelectorCategoryForKindV1,
+    39→  selectContextResourcesV1,
+    40→  type ContextSelectorResultV1,
+    41→} from './selector'
+    42→import {
+    43→  createContextGatewayToolSessionV1,
+    44→  isContextGatewayResourceAllowedV1,
+    45→  settleContextGatewayTokensV1,
+    46→  type ContextGatewayProviderBindingV1,
+    47→  type ContextGatewayToolSessionV1,
+    48→} from './tool-session'
+    49→import {
+    50→  assertAgentSkillContextGatewayPolicyV1,
+    51→  contextGatewayAdditionalReadToolNamesForSkillV1,
+    52→  createContextAccessPolicyForExecutionV1,
+    53→  isContextGatewayRequiredForWriteTargetV1,
+    54→} from './skill-policy'
+    55→
+    56→const CATALOG_PAGE_SIZE = 50
+    57→const MAX_CATALOG_PAGES = 20_000
+    58→
+    59→export type ContextGatewayExecutionPathV1 =
+    60→  | 'deterministic-fast'
+    61→  | 'bounded-additional-read'
+    62→  | 'deterministic-fallback'
+    63→
+    64→export interface ExecuteContextGatewayInputV1 {
+    65→  skill: AgentSkillDefinitionV1
+    66→  scope: WorkspaceScope
+    67→  worldGroupId?: number | null
+    68→  chapterId?: number | null
+    69→  characterId?: number | null
+    70→  query?: string
+    71→  budgetTokens?: number
+    72→  mandatoryResourceKeys?: readonly string[]
+    73→  /** Mandatory whole-resource reads; supports aggregate resources with multiple source refs. */
+    74→  mandatoryFullResourceKeys?: readonly string[]
+    75→  /**
+    76→   * Mandatory target resources whose exact source value must be delivered.
+    77→   * This is a deterministic escalation for known edit targets, not an Agent
+    78→   * search shortcut; every key must also be declared mandatory.
+    79→   */
+    80→  mandatoryOriginalResourceKeys?: readonly string[]
+    81→  targetResourceKeys?: readonly string[]
+    82→  entityKeys?: readonly string[]
+    83→  storyArcKeys?: readonly string[]
+    84→  timeRange?: ContextTimeRangeV1
+    85→  /** Runtime narrowing only; callers cannot add kinds not declared by the Skill. */
+    86→  excludedResourceKinds?: readonly ContextResourceDescriptorV1['kind'][]
+    87→  /** Cross-product production may read an immutable WorldRelease instead of
+    88→   * the mutable current Work scope. The locator must still belong to scope. */
+    89→  resourceScope?: FrozenResourceScopeV1
+    90→  /** Adapter-frozen policy; validated as a narrowing of the Skill grant. */
+    91→  accessPolicyOverride?: ContextAccessPolicyV1
+    92→  /** Exact resource permission derived from ProductSourcePlan selectors. */
+    93→  allowedResourceKeys?: readonly string[]
+    94→  /** Omit to disable extra planning calls while preserving deterministic selection. */
+    95→  additionalReadModel?: AgentModelAdapter
+    96→  additionalReadsEnabled?: boolean
+    97→  signal?: AbortSignal
+    98→}
+    99→
+   100→export interface ContextGatewayExecutionV1 {
+   101→  version: 'context-gateway-execution-v1'
+   102→  path: ContextGatewayExecutionPathV1
+   103→  session: ContextGatewayToolSessionV1
+   104→  selector: ContextSelectorResultV1
+   105→  sufficiency: ContextSufficiencyReportV1
+   106→  retrievalTrace: RetrievalTraceV1
+   107→  contextPacket: ContextPacketV1
+   108→  sourceSnapshots: ContextGatewaySourceSnapshotInputV1[]
+   109→  toolTranscript: ContextGatewayToolTranscriptInputV1[]
+   110→  metrics: {
+   111→    catalogPages: number
+   112→    catalogResources: number
+   113→    deterministicResourceReads: number
+   114→    additionalPlanningModelCalls: number
+   115→    additionalToolCalls: number
+   116→    additionalReadResources: number
+   117→    retrievedTokens: number
+   118→    stopReason: string
+   119→  }
+   120→}
+   121→
+   122→export class ContextGatewayExecutionErrorV1 extends Error {
+   123→  constructor(readonly code: string, message: string) {
+   124→    super(`[context-gateway-execution:${code}] ${message}`)
+   125→    this.name = 'ContextGatewayExecutionErrorV1'
+   126→  }
+   127→}
+   128→
+   129→function fail(code: string, message: string): never {
+   130→  throw new ContextGatewayExecutionErrorV1(code, message)
+   131→}
+   132→
+   133→function frozenScope(input: ExecuteContextGatewayInputV1): FrozenResourceScopeV1 {
+   134→  if (input.resourceScope) {
+   135→    if (input.resourceScope.projectId !== input.scope.projectId
+   136→      || (input.resourceScope.worldId != null && input.resourceScope.worldId !== input.scope.worldId)
+   137→      || (input.resourceScope.workId != null && input.resourceScope.workId !== input.scope.workId)) {
+   138→      fail('resource-scope', '冻结资源 scope 不属于当前 WorkspaceScope')
+   139→    }
+   140→    return { ...input.resourceScope }
+   141→  }
+   142→  return {
+   143→    projectId: input.scope.projectId,
+   144→    worldId: input.scope.worldId,
+   145→    workId: input.scope.workId,
+   146→    worldGroupId: input.worldGroupId ?? null,
+   147→    ...(input.chapterId == null ? {} : { chapterId: input.chapterId }),
+   148→    ...(input.characterId === undefined ? {} : { characterId: input.characterId }),
+   149→  }
+   150→}
+   151→
+   152→function narrowedAccessPolicy(input: ExecuteContextGatewayInputV1): ContextAccessPolicyV1 {
+   153→  const declared = createContextAccessPolicyForExecutionV1(input.skill, input.excludedResourceKinds)
+   154→  const override = input.accessPolicyOverride
+   155→  if (!override) return declared
+   156→  const subset = <T>(values: readonly T[], allowed: readonly T[]) => values.every(value => allowed.includes(value))
+   157→  if (!subset(override.allowedSourceKeys, declared.allowedSourceKeys)
+   158→    || !subset(override.mandatorySourceKeys, override.allowedSourceKeys)
+   159→    || !subset(override.allowedResourceKinds, declared.allowedResourceKinds)
+   160→    || !subset(override.allowedDepths, declared.allowedDepths)
+   161→    || override.selectorPolicyId !== declared.selectorPolicyId
+   162→    || override.maxReadCalls > declared.maxReadCalls
+   163→    || override.maxRetrievedTokens > declared.maxRetrievedTokens
+   164→    || (override.allowOriginalRead && !declared.allowOriginalRead)
+   165→    || override.candidateAccess !== 'forbidden') {
+   166→    fail('policy-override', 'SourcePlan policy 超出 Agent Skill 的静态权限')
+   167→  }
+   168→  return structuredClone(override)
+   169→}
+   170→
+   171→function hardFailure(report: ContextSufficiencyReportV1): ContextSufficiencyObligationV1 | undefined {
+   172→  return report.obligations.find(item => item.required && (item.status === 'missing' || item.status === 'conflicted'))
+   173→}
+   174→
+   175→async function collectCatalog(session: ContextGatewayToolSessionV1): Promise<{
+   176→  descriptors: ContextResourceDescriptorV1[]
+   177→  pages: number
+   178→}> {
+   179→  const descriptors: ContextResourceDescriptorV1[] = []
+   180→  const keys = new Set<string>()
+   181→  let pages = 0
+   182→  for (const binding of session.providers) {
+   183→    const kinds = session.policy.allowedResourceKinds.filter(kind => binding.provider.kinds.includes(kind))
+   184→    if (!kinds.length) continue
+   185→    let cursor: string | undefined
+   186→    do {
+   187→      if (++pages > MAX_CATALOG_PAGES) fail('catalog-page-budget', `目录超过 ${MAX_CATALOG_PAGES} 页，拒绝静默截断`)
+   188→      const raw = await binding.provider.listMetadata({
+   189→        scope: session.scope,
+   190→        kinds,
+   191→        limit: CATALOG_PAGE_SIZE,
+   192→        cursor,
+   193→      })
+   194→      const page = filterContextResourcePageV1({
+   195→        page: assertResourcePageV1({
+   196→          page: raw,
+   197→          source: binding.source,
+   198→          expectedScopeFingerprint: session.scopeFingerprint,
+   199→          maxItems: CATALOG_PAGE_SIZE,
+   200→        }),
+   201→        policy: session.policy,
+   202→      })
+   203→      for (const descriptor of page.items) {
+   204→        if (!isContextGatewayResourceAllowedV1(session, descriptor.resourceKey)) continue
+   205→        if (keys.has(descriptor.resourceKey)) fail('duplicate-resource', `目录重复 ${descriptor.resourceKey}`)
+   206→        keys.add(descriptor.resourceKey)
+   207→        descriptors.push(descriptor)
+   208→      }
+   209→      cursor = raw.nextCursor ?? undefined
+   210→    } while (cursor)
+   211→  }
+   212→  return {
+   213→    descriptors: descriptors.sort((left, right) => left.resourceKey.localeCompare(right.resourceKey)),
+   214→    pages,
+   215→  }
+   216→}
+   217→
+   218→function bindingFor(
+   219→  session: ContextGatewayToolSessionV1,
+   220→  sourceKey: string,
+   221→): ContextGatewayProviderBindingV1 {
+   222→  return session.providers.find(item => item.source.key === sourceKey)
+   223→    ?? fail('provider-missing', `资源来源 ${sourceKey} 不在冻结 Gateway session`)
+   224→}
+   225→
+   226→function retrievalDecision(input: {
+   227→  decision: ContextSelectorResultV1['selected'][number]
+   228→  descriptor: ContextResourceDescriptorV1
+   229→  tokenCount: number
+   230→}): RetrievalDecisionV1 {
+   231→  return {
+   232→    resourceKey: input.decision.resourceKey,
+   233→    sourceKey: input.decision.sourceKey,
+   234→    reason: input.decision.reasonCodes.join('+'),
+   235→    depth: input.decision.depth,
+   236→    revision: input.decision.contentRevision,
+   237→    contentHash: input.decision.contentHash,
+   238→    policyRevision: input.decision.policyRevision,
+   239→    policyHash: input.decision.policyHash,
+   240→    sourceRefs: [...input.descriptor.sourceRefs],
+   241→    tokenCount: input.tokenCount,
+   242→  }
+   243→}
+   244→
+   245→function timeBoundary(descriptor: ContextResourceDescriptorV1): number | string | null {
+   246→  return descriptor.timeRange?.start
+   247→    ?? descriptor.timeRange?.end
+   248→    ?? descriptor.scope.chapterId
+   249→    ?? null
+   250→}
+   251→
+   252→function compareBoundary(left: number | string, right: number | string): number {
+   253→  if (typeof left === 'number' && typeof right === 'number') return left - right
+   254→  return String(left).localeCompare(String(right), 'zh-CN', { numeric: true })
+   255→}
+   256→
+   257→async function reconcileSufficiency(input: {
+   258→  selector: ContextSelectorResultV1
+   259→  descriptors: readonly ContextResourceDescriptorV1[]
+   260→  agentReads: readonly RetrievalDecisionV1[]
+   261→  readsAllowed: boolean
+   262→  assumptions?: readonly string[]
+   263→}): Promise<ContextSufficiencyReportV1> {
+   264→  const readKeys = new Set(input.agentReads.map(item => item.resourceKey))
+   265→  const descriptorByKey = new Map(input.descriptors.map(item => [item.resourceKey, item]))
+   266→  const additionalTokensByCategory = new Map<string, number>()
+   267→  for (const read of input.agentReads) {
+   268→    const descriptor = descriptorByKey.get(read.resourceKey)
+   269→    if (!descriptor) continue
+   270→    const category = contextSelectorCategoryForKindV1(descriptor.kind)
+   271→    additionalTokensByCategory.set(category, (additionalTokensByCategory.get(category) ?? 0) + read.tokenCount)
+   272→  }
+   273→  const temporal = input.descriptors
+   274→    .filter(item => timeBoundary(item) != null)
+   275→    .sort((left, right) => compareBoundary(timeBoundary(left)!, timeBoundary(right)!))
+   276→  const earliestKey = temporal[0]?.resourceKey
+   277→  const obligations = input.selector.sufficiency.obligations.map(obligation => {
+   278→    if (obligation.required || obligation.status !== 'missing') return obligation
+   279→    if (obligation.id.startsWith('category-quota:')) {
+   280→      const category = obligation.id.slice('category-quota:'.length)
+   281→      const budget = input.selector.categoryBudgets.find(item => item.category === category)
+   282→      const delivered = (budget?.selectedTokens ?? 0) + (additionalTokensByCategory.get(category) ?? 0)
+   283→      if (budget && delivered >= budget.targetTokens) {
+   284→        const evidence = input.agentReads
+   285→          .filter(read => contextSelectorCategoryForKindV1(descriptorByKey.get(read.resourceKey)!.kind) === category)
+   286→          .map(read => read.resourceKey)
+   287→        return {
+   288→          ...obligation,
+   289→          status: 'satisfied' as const,
+   290→          evidenceResourceKeys: [...new Set([...obligation.evidenceResourceKeys, ...evidence])].sort(),
+   291→          reasonCode: 'category-quota-delivered-with-agent-read',
+   292→        }
+   293→      }
+   294→    }
+   295→    if (obligation.id === 'early-anchor' && earliestKey && readKeys.has(earliestKey)) {
+   296→      return {
+   297→        ...obligation,
+   298→        status: 'satisfied' as const,
+   299→        evidenceResourceKeys: [earliestKey],
+   300→        reasonCode: 'early-anchor-delivered-with-agent-read',
+   301→      }
+   302→    }
+   303→    return obligation
+   304→  })
+   305→  return createContextSufficiencyReportV1({
+   306→    obligations,
+   307→    assumptions: [...input.selector.sufficiency.assumptions, ...(input.assumptions ?? [])],
+   308→    readsAllowed: input.readsAllowed,
+   309→  })
+   310→}
+   311→
+   312→async function selectorWithSufficiency(
+   313→  selector: ContextSelectorResultV1,
+   314→  sufficiency: ContextSufficiencyReportV1,
+   315→): Promise<ContextSelectorResultV1> {
+   316→  const { selectorHash: _hash, ...body } = selector
+   317→  const next = { ...body, sufficiency }
+   318→  return { ...next, selectorHash: await hashCanonicalValue(next) }
+   319→}
+   320→
+   321→function parseAgentRead(
+   322→  result: AgentToolResult,
+   323→  descriptors: ReadonlyMap<string, ContextResourceDescriptorV1>,
+   324→): { decision?: RetrievalDecisionV1; content?: string } {
+   325→  if (!result.ok || !result.meta.gateway) return {}
+   326→  const resourceKey = result.meta.gateway.resourceKeys[0]
+   327→  if (!resourceKey) return {}
+   328→  let parsed: Record<string, unknown>
+   329→  try {
+   330→    parsed = JSON.parse(result.content) as Record<string, unknown>
+   331→  } catch {
+   332→    fail('tool-result-json', `${result.meta.toolName} 返回非法 JSON`)
+   333→  }
+   334→  if (result.meta.gateway.operation === 'original') {
+   335→    return { content: typeof parsed.content === 'string' ? parsed.content : undefined }
+   336→  }
+   337→  if (result.meta.gateway.operation !== 'read') return {}
+   338→  const descriptor = descriptors.get(resourceKey)
+   339→  if (!descriptor || !parsed.descriptor || typeof parsed.content !== 'string') {
+   340→    fail('tool-result-resource', `工具结果 ${resourceKey} 与冻结目录不一致`)
+   341→  }
+   342→  const publicDescriptor = parsed.descriptor as Record<string, unknown>
+   343→  if (publicDescriptor.contentHash !== descriptor.contentHash
+   344→    || publicDescriptor.policyHash !== descriptor.policyHash) {
+   345→    fail('tool-result-descriptor', `工具结果 ${resourceKey} 的 descriptor 已漂移`)
+   346→  }
+   347→  return {
+   348→    decision: {
+   349→      resourceKey,
+   350→      sourceKey: descriptor.sourceKey,
+   351→      reason: 'agent-additional-read',
+   352→      depth: parsed.depth as RetrievalDecisionV1['depth'],
+   353→      revision: descriptor.contentRevision,
+   354→      contentHash: descriptor.contentHash,
+   355→      policyRevision: descriptor.policyRevision,
+   356→      policyHash: descriptor.policyHash,
+   357→      sourceRefs: result.meta.gateway.sourceRefEvidence.map(item => item.sourceRef),
+   358→      tokenCount: estimateTokens(parsed.content),
+   359→    },
+   360→    content: parsed.content,
+   361→  }
+   362→}
+   363→
+   364→async function validatedAgentRead(
+   365→  result: AgentToolResult,
+   366→  descriptors: ReadonlyMap<string, ContextResourceDescriptorV1>,
+   367→): Promise<{ decision?: RetrievalDecisionV1; content?: string }> {
+   368→  const parsed = parseAgentRead(result, descriptors)
+   369→  if (!parsed.content || result.meta.gateway?.operation !== 'read') return parsed
+   370→  const wire = JSON.parse(result.content) as Record<string, unknown>
+   371→  if (wire.contentHash !== await sha256Text(parsed.content)) fail('tool-result-hash', '追加读取正文 hash 不匹配')
+   372→  return parsed
+   373→}
+   374→
+   375→export async function executeContextGatewayV1(
+   376→  input: ExecuteContextGatewayInputV1,
+   377→): Promise<ContextGatewayExecutionV1> {
+   378→  const gatewayPolicy = assertAgentSkillContextGatewayPolicyV1(input.skill)
+   379→  const accessPolicy = narrowedAccessPolicy(input)
+   380→  const session = await createContextGatewayToolSessionV1({
+   381→    scope: frozenScope(input),
+   382→    policy: accessPolicy,
+   383→    allowedResourceKeys: input.allowedResourceKeys,
+   384→  })
+   385→  const catalog = await collectCatalog(session)
+   386→  const readsAllowed = input.additionalReadsEnabled !== false
+   387→    && input.additionalReadModel != null
+   388→    && gatewayPolicy.additionalReadToolNames.length > 0
+   389→  let selector = await selectContextResourcesV1({
+   390→    taskKind: input.skill.contextTaskKind,
+   391→    accessPolicy: session.policy,
+   392→    scope: session.scope,
+   393→    descriptors: catalog.descriptors,
+   394→    budgetTokens: Math.min(input.budgetTokens ?? session.policy.maxRetrievedTokens, session.policy.maxRetrievedTokens),
+   395→    mandatoryResourceKeys: input.mandatoryResourceKeys,
+   396→    mandatoryFullResourceKeys: input.mandatoryFullResourceKeys,
+   397→    mandatoryOriginalResourceKeys: input.mandatoryOriginalResourceKeys,
+   398→    targetResourceKeys: input.targetResourceKeys,
+   399→    entityKeys: input.entityKeys,
+   400→    storyArcKeys: input.storyArcKeys,
+   401→    timeRange: input.timeRange,
+   402→    query: input.query,
+   403→    readsAllowed,
+   404→  })
+   405→  const initialHardFailure = hardFailure(selector.sufficiency)
+   406→  if (initialHardFailure) {
+   407→    const omission = selector.omitted.find(item => initialHardFailure.id.endsWith(item.resourceKey))
+   408→    fail('hard-sufficiency', [
+   409→      initialHardFailure.id,
+   410→      initialHardFailure.reasonCode,
+   411→      omission ? `omitted=${omission.reasonCode}` : '',
+   412→    ].filter(Boolean).join(':'))
+   413→  }
+   414→
+   415→  const mandatoryInputKeys = new Set(input.mandatoryResourceKeys ?? [])
+   416→  const mandatoryOriginalKeys = new Set(input.mandatoryOriginalResourceKeys ?? [])
+   417→  for (const key of mandatoryOriginalKeys) {
+   418→    if (!mandatoryInputKeys.has(key)) {
+   419→      fail('original-not-mandatory', `原文定点读取必须同时声明 mandatory resource: ${key}`)
+   420→    }
+   421→    if (!session.policy.allowOriginalRead || !session.policy.allowedDepths.includes('original')) {
+   422→      fail('original-forbidden', `Skill 不允许原文定点读取: ${key}`)
+   423→    }
+   424→  }
+   425→
+   426→  const descriptorByKey = new Map(catalog.descriptors.map(item => [item.resourceKey, item]))
+   427→  const deterministicReads: RetrievalDecisionV1[] = []
+   428→  const sourceSnapshots: ContextGatewaySourceSnapshotInputV1[] = []
+   429→  const packetBlocks: string[] = []
+   430→  const deterministicDecisions = [...selector.selected].sort((left, right) => (
+   431→    Number(mandatoryOriginalKeys.has(right.resourceKey))
+   432→    - Number(mandatoryOriginalKeys.has(left.resourceKey))
+   433→    || left.resourceKey.localeCompare(right.resourceKey)
+   434→  ))
+   435→  for (const decision of deterministicDecisions) {
+   436→    const descriptor = descriptorByKey.get(decision.resourceKey)
+   437→      ?? fail('selector-resource', `选择结果缺少目录资源 ${decision.resourceKey}`)
+   438→    const remaining = session.policy.maxRetrievedTokens - session.usage.retrievedTokens
+   439→    if (remaining < 1) fail('deterministic-token-budget', `确定性读取 ${decision.resourceKey} 前额度耗尽`)
+   440→    const binding = bindingFor(session, decision.sourceKey)
+   441→    if (mandatoryOriginalKeys.has(decision.resourceKey)) {
+   442→      if (descriptor.sourceRefs.length !== 1) {
+   443→        fail('mandatory-original-ambiguous', `原文定点读取要求唯一 source ref: ${decision.resourceKey}`)
+   444→      }
+   445→      const sourceRef = descriptor.sourceRefs[0]!
+   446→      const read = await binding.provider.readOriginal({
+   447→        scope: session.scope,
+   448→        resourceKey: decision.resourceKey,
+   449→        sourceRef,
+   450→        maxTokens: remaining,
+   451→      })
+   452→      const exactHash = sourceRef.anchor?.quoteHash ?? sourceRef.contentHash
+   453→      if (descriptor.contentHash !== decision.contentHash
+   454→        || descriptor.policyHash !== decision.policyHash
+   455→        || read.descriptor.contentHash !== decision.contentHash
+   456→        || read.descriptor.policyHash !== decision.policyHash
+   457→        || read.contentHash !== exactHash
+   458→        || read.contentHash !== await sha256Text(read.content)
+   459→        || read.tokenCount !== estimateTokens(read.content)) {
+   460→        fail('mandatory-original-incomplete', `${decision.resourceKey} 原文超出本轮预算或验签失败，拒绝静默截断`)
+   461→      }
+   462→      settleContextGatewayTokensV1(session, read.tokenCount)
+   463→      deterministicReads.push({
+   464→        ...retrievalDecision({ decision, descriptor: read.descriptor, tokenCount: read.tokenCount }),
+   465→        depth: 'original',
+   466→        sourceRefs: [sourceRef],
+   467→      })
+   468→      sourceSnapshots.push({
+   469→        sourceKey: decision.sourceKey,
+   470→        resourceKey: decision.resourceKey,
+   471→        sourceRefs: [sourceRef],
+   472→        content: read.content,
+   473→      })
+   474→      packetBlocks.push(`【${read.descriptor.kind}｜${read.descriptor.title}｜original】\n${read.content}`)
+   475→      continue
+   476→    }
+   477→    if (decision.depth === 'original') {
+   478→      fail('original-not-declared', `selector 返回了未声明的原文读取: ${decision.resourceKey}`)
+   479→    }
+   480→    const read = await binding.provider.read({
+   481→      scope: session.scope,
+   482→      resourceKey: decision.resourceKey,
+   483→      depth: decision.depth,
+   484→      maxTokens: Math.max(1, Math.min(remaining, decision.estimatedTokens || remaining)),
+   485→    })
+   486→    if (descriptor.contentHash !== decision.contentHash
+   487→      || descriptor.policyHash !== decision.policyHash
+   488→      || read.descriptor.contentHash !== decision.contentHash
+   489→      || read.descriptor.policyHash !== decision.policyHash
+   490→      || read.contentHash !== await sha256Text(read.content)
+   491→      || read.tokenCount !== estimateTokens(read.content)) {
+   492→      fail('deterministic-read-integrity', `${decision.resourceKey} 在选择后发生漂移或正文验签失败`)
+   493→    }
+   494→    settleContextGatewayTokensV1(session, read.tokenCount)
+   495→    deterministicReads.push(retrievalDecision({ decision, descriptor: read.descriptor, tokenCount: read.tokenCount }))
+   496→    sourceSnapshots.push({
+   497→      sourceKey: decision.sourceKey,
+   498→      resourceKey: decision.resourceKey,
+   499→      sourceRefs: read.descriptor.sourceRefs,
+   500→      content: read.content,
+   501→    })
+   502→    packetBlocks.push(`【${read.descriptor.kind}｜${read.descriptor.title}｜${decision.depth}】\n${read.content}`)
+   503→  }
+   504→
+   505→  const agentReads = new Map<string, RetrievalDecisionV1>()
+   506→  const deterministicReadKeys = new Set(deterministicReads.map(item => item.resourceKey))
+   507→  const toolTranscript: ContextGatewayToolTranscriptInputV1[] = []
+   508→  const queryTrace: RetrievalQueryTraceV1[] = []
+   509→  let planning: ReadOnlyAgentResult | null = null
+   510→  let path: ContextGatewayExecutionPathV1 = 'deterministic-fast'
+   511→  let stopReason = 'sufficient-with-deterministic-selection'
+   512→  let liveSufficiency = selector.sufficiency
+   513→  let callIndex = 0
+   514→
+   515→  if (selector.sufficiency.additionalRead === 'needed' && readsAllowed) {
+   516→    path = 'bounded-additional-read'
+   517→    planning = await runReadOnlyAgent({
+   518→      goal: [
+   519→        '为同一个创作 Skill 补齐上下文证据。不要创作正文；充分后立即 final。',
+   520→        `任务=${input.skill.id}`,
+   521→        `查询=${input.query?.trim() || '（无）'}`,
+   522→        `已选资源=${selector.selected.map(item => item.resourceKey).join(',') || '（无）'}`,
+   523→        `缺失义务=${selector.sufficiency.obligations.filter(item => item.status === 'missing').map(item => item.id).join(',')}`,
+   524→      ].join('\n'),
+   525→      context: {
+   526→        projectId: input.scope.projectId,
+   527→        scope: input.scope,
+   528→        worldGroupId: input.worldGroupId ?? null,
+   529→        contextGatewaySession: session,
+   530→      },
+   531→      model: input.additionalReadModel!,
+   532→      allowedToolNames: contextGatewayAdditionalReadToolNamesForSkillV1(input.skill),
+   533→      limits: {
+   534→        maxSteps: gatewayPolicy.maxPlanningSteps,
+   535→        maxToolCalls: gatewayPolicy.maxReadCalls,
+   536→        maxTotalTokens: gatewayPolicy.maxPlanningModelTokens,
+   537→        maxToolResultTokens: gatewayPolicy.maxRetrievedTokens,
+   538→        maxProtocolErrors: 1,
+   539→      },
+   540→      signal: input.signal,
+   541→      stopAfterToolBatch: async batch => {
+   542→        let evidenceCalls = 0
+   543→        let added = 0
+   544→        for (const item of batch.results) {
+   545→          const resourceKey = item.result.meta.gateway?.resourceKeys[0]
+   546→          toolTranscript.push({
+   547→            toolName: item.name,
+   548→            callIndex: callIndex++,
+   549→            ...(resourceKey ? { resourceKey } : {}),
+   550→            arguments: item.arguments,
+   551→            result: item.result,
+   552→          })
+   553→          if (item.result.meta.gateway?.operation === 'search' || item.result.meta.gateway?.operation === 'list') {
+   554→            queryTrace.push({
+   555→              query: item.name === 'search_context'
+   556→                ? String(item.arguments.query ?? '')
+   557→                : '[catalog]',
+   558→              sourceKeys: [...item.result.meta.sourceKeys].sort(),
+   559→              resultResourceKeys: [...item.result.meta.gateway.resourceKeys],
+   560→              resultFingerprint: await hashCanonicalValue({
+   561→                tool: item.name,
+   562→                arguments: item.arguments,
+   563→                resourceKeys: item.result.meta.gateway.resourceKeys,
+   564→              }),
+   565→            })
+   566→          }
+   567→          if (item.result.meta.gateway?.operation === 'read') {
+   568→            evidenceCalls++
+   569→            const parsed = await validatedAgentRead(item.result, descriptorByKey)
+   570→            if (parsed.decision
+   571→              && !deterministicReadKeys.has(parsed.decision.resourceKey)
+   572→              && !agentReads.has(parsed.decision.resourceKey)) {
+   573→              agentReads.set(parsed.decision.resourceKey, parsed.decision)
+   574→              packetBlocks.push(`【追加读取｜${parsed.decision.resourceKey}｜${parsed.decision.depth}】\n${parsed.content ?? ''}`)
+   575→              added++
+   576→            }
+   577→          } else if (item.result.meta.gateway?.operation === 'original' && item.result.ok) {
+   578→            packetBlocks.push(`【原文回查｜${resourceKey ?? 'unknown'}】\n${(await validatedAgentRead(item.result, descriptorByKey)).content ?? ''}`)
+   579→          }
+   580→        }
+   581→        liveSufficiency = await reconcileSufficiency({
+   582→          selector,
+   583→          descriptors: catalog.descriptors,
+   584→          agentReads: [...agentReads.values()],
+   585→          readsAllowed: true,
+   586→        })
+   587→        if (liveSufficiency.additionalRead === 'not-needed') return 'context-sufficient'
+   588→        if (evidenceCalls > 0 && added === 0) return 'context-read-no-new-evidence'
+   589→        return null
+   590→      },
+   591→    })
+   592→    stopReason = planning.status
+   593→    liveSufficiency = await reconcileSufficiency({
+   594→      selector,
+   595→      descriptors: catalog.descriptors,
+   596→      agentReads: [...agentReads.values()],
+   597→      readsAllowed: false,
+   598→      ...(liveSufficiency.additionalRead === 'needed'
+   599→        ? { assumptions: [`additional-read-stopped:${planning.status}`] }
+   600→        : {}),
+   601→    })
+   602→  } else if (selector.sufficiency.additionalRead !== 'not-needed') {
+   603→    path = 'deterministic-fallback'
+   604→    stopReason = readsAllowed ? 'additional-read-not-needed-state-invalid' : 'additional-reads-disabled'
+   605→    liveSufficiency = await reconcileSufficiency({
+   606→      selector,
+   607→      descriptors: catalog.descriptors,
+   608→      agentReads: [],
+   609→      readsAllowed: false,
+   610→      assumptions: ['additional-reads-disabled'],
+   611→    })
+   612→  }
+   613→  if (hardFailure(liveSufficiency)) fail('hard-sufficiency-after-read', '追加读取后仍有硬缺失或冲突')
+   614→  selector = await selectorWithSufficiency(selector, liveSufficiency)
+   615→
+   616→  const mandatoryKeys = new Set(selector.selected.filter(item => item.hardRequirement).map(item => item.resourceKey))
+   617→  const retrievalTrace = await createRetrievalTraceV1({
+   618→    catalogVersion: selector.inventoryHash,
+   619→    selectorPolicyId: selector.selectorPolicyId,
+   620→    mandatory: deterministicReads.filter(item => mandatoryKeys.has(item.resourceKey)),
+   621→    autoSelected: deterministicReads.filter(item => !mandatoryKeys.has(item.resourceKey)),
+   622→    agentReads: [...agentReads.values()].sort((left, right) => left.resourceKey.localeCompare(right.resourceKey)),
+   623→    omitted: selector.omitted.map(item => ({
+   624→      resourceKey: item.resourceKey,
+   625→      sourceKey: item.sourceKey,
+   626→      reasonCode: item.reasonCode,
+   627→      tokenEstimate: item.estimatedTokens,
+   628→    })),
+   629→    queries: queryTrace,
+   630→    fallbackUsed: path === 'deterministic-fallback',
+   631→  })
+   632→  const providerSources = CONTEXT_SOURCES.filter(source => accessPolicy.allowedSourceKeys.includes(source.key))
+   633→  const contract = await createContextGatewayContractSnapshotV1({
+   634→    policy: session.policy,
+   635→    sources: providerSources,
+   636→    gatewayVersion: 'context-gateway-execution-v1',
+   637→    selectorVersion: CONTEXT_SELECTOR_VERSION_V1,
+   638→    sufficiencyObligationsVersion: 'context-sufficiency-v1',
+   639→    toolSchemaHash: AGENT_TOOL_SCHEMA_HASH_V1,
+   640→    normalizationVersion: 'context-gateway-execution-v1',
+   641→  })
+   642→  const content = packetBlocks.join('\n\n')
+   643→  const contextPacket = await createContextPacketV1({
+   644→    scopeFingerprint: session.scopeFingerprint,
+   645→    gatewayVersionHash: contract.gateway.versionHash,
+   646→    policyHash: session.policyHash,
+   647→    sufficiencyReportHash: liveSufficiency.reportHash,
+   648→    retrievalTraceHash: retrievalTrace.traceHash,
+   649→    content,
+   650→    sourceRefs: [...deterministicReads, ...agentReads.values()].flatMap(item => item.sourceRefs),
+   651→  })
+   652→  return {
+   653→    version: 'context-gateway-execution-v1',
+   654→    path,
+   655→    session,
+   656→    selector,
+   657→    sufficiency: liveSufficiency,
+   658→    retrievalTrace,
+   659→    contextPacket,
+   660→    sourceSnapshots,
+   661→    toolTranscript,
+   662→    metrics: {
+   663→      catalogPages: catalog.pages,
+   664→      catalogResources: catalog.descriptors.length,
+   665→      deterministicResourceReads: deterministicReads.length,
+   666→      additionalPlanningModelCalls: planning?.steps ?? 0,
+   667→      additionalToolCalls: planning?.toolCalls ?? 0,
+   668→      additionalReadResources: agentReads.size,
+   669→      retrievedTokens: session.usage.retrievedTokens,
+   670→      stopReason,
+   671→    },
+   672→  }
+   673→}
+   674→
+   675→export async function assertContextGatewayCandidateAdoptableV1(input: {
+   676→  skill: AgentSkillDefinitionV1
+   677→  writeTarget?: string
+   678→  scope: WorkspaceScope
+   679→  worldGroupId?: number | null
+   680→  chapterId?: number | null
+   681→  characterId?: number | null
+   682→  runId: number
+   683→  stepId: string
+   684→  attempt: number
+   685→  candidateHash: string
+   686→  contextManifestHash?: string
+   687→  excludedResourceKinds?: readonly ContextResourceDescriptorV1['kind'][]
+   688→}): Promise<{ mode: 'registry-context' } | { mode: 'required'; manifestHash: string; freshnessHash: string }> {
+   689→  if (!isContextGatewayRequiredForWriteTargetV1(input.skill, input.writeTarget)) {
+   690→    return { mode: 'registry-context' }
+   691→  }
+   692→  if (!input.contextManifestHash) fail('candidate-manifest-required', `Skill ${input.skill.id} 的候选缺少 ContextManifestV3`)
+   693→  const verified = await verifyContextGatewayCandidateEvidenceV1({
+   694→    scope: input.scope,
+   695→    runId: input.runId,
+   696→    stepId: input.stepId,
+   697→    attempt: input.attempt,
+   698→    candidateHash: input.candidateHash,
+   699→  })
+   700→  if (verified.manifest.manifestHash !== input.contextManifestHash) {
+   701→    fail('candidate-manifest-mismatch', '候选声明的 Context Manifest 与 exact evidence 不一致')
+   702→  }
+   703→  const session = await createContextGatewayToolSessionV1({
+   704→    scope: {
+   705→      projectId: input.scope.projectId,
+   706→      worldId: input.scope.worldId,
+   707→      workId: input.scope.workId,
+   708→      worldGroupId: input.worldGroupId ?? null,
+   709→      ...(input.chapterId == null ? {} : { chapterId: input.chapterId }),
+   710→      ...(input.characterId === undefined ? {} : { characterId: input.characterId }),
+   711→    },
+   712→    policy: createContextAccessPolicyForExecutionV1(input.skill, input.excludedResourceKinds),
+   713→  })
+   714→  const freshness = await inspectContextGatewayManifestFreshnessV1({ manifest: verified.manifest, session })
+   715→  if (freshness.status !== 'fresh') fail('candidate-context-stale', freshness.reasonCodes.join(','))
+   716→  return {
+   717→    mode: 'required',
+   718→    manifestHash: verified.manifest.manifestHash,
+   719→    freshnessHash: freshness.reportHash,
+   720→  }
+   721→}
+   722→

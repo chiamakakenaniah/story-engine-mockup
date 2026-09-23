@@ -1,0 +1,312 @@
+     1→# StoryForge · 故事熔炉
+     2→
+     3→**Write stories. Step inside them.**
+     4→
+     5→<!-- readme-languages:start -->
+     6→[简体中文](./README.md) · [English](./README.en.md) · [Français](./README.fr.md) · [Deutsch](./README.de.md) · [Italiano](./README.it.md) · [Español](./README.es.md) · [Português](./README.pt.md) · [日本語](./README.ja.md) · [한국어](./README.ko.md)
+     7→<!-- readme-languages:end -->
+     8→
+     9→**Chinese tutorials & community:** [Bilibili video](https://www.bilibili.com/video/BV1q37j6QExh/) · [Zhihu introduction](https://zhuanlan.zhihu.com/p/2038714210188780594) · **QQ group: 1082374587** · [More community links](#community-and-contributing)
+    10→
+    11→[Start creating](#quick-start) · [Try Fog Harbor](#try-an-original-story) · [Explore the architecture](#shared-execution-and-data-architecture)
+    12→
+    13→StoryForge is an open-source, local-first AI narrative creation and experience toolkit. Write long or short fiction, adapt a novel into a screenplay or comic, build reusable worlds, and explore character interaction and playable stories. You choose the workflow and approve AI candidates before they become part of your work.
+    14→
+    15→> Long fiction, short fiction, screenplays, comics and the world engine have released entries. Nodes and interactive products are previews. This README is available in nine languages; this does not imply matching coverage in the interface or linked documents. Screenshots and many guides are in Chinese.
+    16→
+    17→## Try an original story
+    18→
+    19→### Fog Harbor: The Last Light — community TTRPG preview
+    20→
+    21→Investigate an old shipwreck with two AI companions, protect your character's secrets and decide how tonight's ships will return. An AI KP hosts the adventure using original 2d6 rules, with seven scenes, six clues and three endings.
+    22→
+    23→![Fog Harbor adventure entry](./docs/assets/readme/ttrpg-current.png)
+    24→
+    25→The game bundle ships with the repository. Configure your own model API to begin; the screenshot shows the actual adventure entry.
+    26→
+    27→**Play loop:** propose an action → resolve rules → read the KP response → inspect clues → save and continue.
+    28→
+    29→[Setup and model configuration](#quick-start) · [Player guide](./examples/ttrpg/README.md) · [Production/playthrough evidence](./examples/ttrpg/fog-harbor/production-status.md)
+    30→
+    31→<details>
+    32→<summary>How to play and current scope</summary>
+    33→
+    34→Run current `main`, open **TTRPG** (`跑团`) and choose the adventure below the production section. The standalone route `/storyforge/play` also works. The game bundle, cover and included media ship with the repository. Configure your model API, choose a character and start.
+    35→
+    36→Play solo with AI companions or use same-device handoff. Progress is local, with resume and checkpoints. Public online multiplayer is not deployed, and same-device secrets are not protected from the device owner. Read the [player guide](./examples/ttrpg/README.md) and [production/playthrough evidence](./examples/ttrpg/fog-harbor/production-status.md).
+    37→
+    38→</details>
+    39→
+    40→## Why StoryForge
+    41→
+    42→- **Traceable long-form memory.** Original text, facts, summaries and retrieval help recover earlier clues; confirmed chapter changes feed later writing. [Long fiction](#long-fiction-and-nodes)
+    43→- **Dedicated production workflows.** Short fiction has length and completion gates; screenplays retain adaptation evidence; comics separate panels, images and lettering. [Creation products](#short-fiction-screenplays-and-comics)
+    44→- **Author control over AI output.** Formal authoring produces candidates for approval. Harness adds revision protection, execution evidence and recovery. [Architecture and regression evidence](#shared-execution-and-data-architecture)
+    45→
+    46→[Quick start](#quick-start) · [Choose a product](#choose-your-starting-point) · [First session](#your-first-writing-session) · [Worlds and experiences](#worlds-and-interactive-products) · [Models and privacy](#models-storage-and-privacy) · [Community](#community-and-contributing)
+    47→
+    48→## Quick start
+    49→
+    50→> This introduction describes `main`, checked on September 9, 2026. Long-form writing, short fiction, screenplay adaptation, comic adaptation, and the world engine have released product entries. Nodes and interactive products are previews. Historical GitHub Releases do not include subsequent changes; the hosted site may lag behind `main`. Use current source for the features shown here. Screenshots are from an isolated local workspace, not an author's private manuscript.
+    51→
+    52→Open the [web app](https://yuanbw.vercel.app/storyforge/) or run the source locally. Core local creation does not require a StoryForge account. AI generation uses your own provider credentials; cloud API charges are separate.
+    53→
+    54→Use **Node.js 24** and npm, matching CI:
+    55→
+    56→```bash
+    57→git clone https://github.com/yuanbw2025/storyforge.git
+    58→cd storyforge
+    59→npm ci
+    60→npm run dev
+    61→```
+    62→
+    63→Open the address printed by Vite, with the `/storyforge/` path. Keep the terminal running while using the app. A downloaded source ZIP needs the same commands after extraction; it is not a desktop installer.
+    64→
+    65→On the home page, open the top-right model/settings button (`模型与本地设置`). Choose a provider, enter your API Key, Base URL and an accessible model, then test the connection. Test a small generation before a large task. A successful connection does not establish task quality, account balance or context capacity. For browser CORS errors, follow the settings panel's local proxy instructions.
+    66→
+    67→## Choose your starting point
+    68→
+    69→![Current StoryForge product hub](./docs/assets/readme/home-current.png)
+    70→
+    71→| Goal | Entry | Result and maturity |
+    72→|---|---|---|
+    73→| Write a novel | Long novel | Settings, characters, outlines, chapters, continuity and revision; current engineering workflow accepted |
+    74→| Finish short fiction | Short novel | Story design, chapter cards, drafting, review, frozen release, Markdown/TXT/JSON export |
+    75→| Adapt a novel into a screenplay | Novel to screenplay | Frozen source, adaptation decisions, beats, scene writing, review, Fountain/FDX/print export |
+    76→| Adapt a novel into a comic | Novel to comic | Pages, panels, visual references, lettering, storyboard/visual releases and PNG/WebP/CBZ/PDF export; visual output depends on supported image services or suitable author assets |
+    77→| Build a world | World engine | Semantic content, explicit derivation, frozen world versions and read access |
+    78→| Compose a visual workflow | Node authoring | Preview; shares the long-form backend and work data |
+    79→| Play an original adventure | TTRPG → Published adventures | Community preview of *Fog Harbor: The Last Light* |
+    80→| Create interactive experiences | Character chat / Afterstory town / Text games | Preview; each product has its own production and runtime lifecycle |
+    81→
+    82→Novel writing does **not** require the world engine. Long and short fiction may optionally be derived into a world by their author. Screenplays and comics are independent adaptations. A published adventure can be played without creating a world first.
+    83→
+    84→## Your first writing session
+    85→
+    86→1. Open **Long form** (`长篇`) → **Library** (`作品库`) → **New novel** (`新建长篇`) and enter a title. A local folder can be configured here or later in settings.
+    87→2. Use project information, references and writing rules to record your intent. Fill only the settings needed for your story.
+    88→3. Plan the conflict and characters, then create volumes and chapters in the outline. Write manually or edit and approve AI candidates.
+    89→4. Open chapters, develop scene outlines and draft the text. Review before adopting results.
+    90→5. Check changes to facts, character states, relationships and foreshadowing before continuing.
+    91→6. Open **Data management** (`数据管理`) to export Markdown/TXT and a full JSON backup.
+    92→
+    93→![Current long-form outline workspace in an isolated demonstration project](./docs/assets/readme/longform-outline-current.png)
+    94→
+    95→## What the architecture does for your work
+    96→
+    97→Long fiction needs evidence from earlier chapters. Adaptation needs traceable decisions. Comics need readable pages as well as images. Each StoryForge product has a dedicated production model, backed by shared context retrieval, candidate approval, version checks and recoverable execution.
+    98→
+    99→<details>
+   100→<summary>Product mechanisms and practical benefits</summary>
+   101→
+   102→| Product | Concrete engineering | Practical benefit |
+   103→|---|---|---|
+   104→| Long fiction | Original text, structured facts, layered summaries, retrieval and future-impact review | Revisit early clues and track what a new chapter changes |
+   105→| Nodes — preview | Official actions reuse long-form Skills, work data and adoption | Compose smaller steps while retaining the existing manuscript |
+   106→| Short fiction | Dedicated length/chapter constraints, evidence-based review and completion gates | See what remains to draft, revise and finalize |
+   107→| Screenplays | Frozen sources → facts/causality → adaptation decisions → beats/scenes → structured script | Trace creative changes and review fidelity separately from dramatic effect |
+   108→| Comics | Script/page/panel pipeline, visual subjects, explicit reading order and separate lettering | Revise a panel or its dialogue and inspect page readability |
+   109→| Worlds | Versioned semantic snapshots and product-specific source plans | Reuse a known version across multiple works |
+   110→| Interactive previews | Dedicated rules, character knowledge, event histories and runtime state | Preserve consequences and independent playthroughs |
+   111→
+   112→See the [architecture and long-term consistency loop](#shared-execution-and-data-architecture) for diagrams, implementation links and regression evidence.
+   113→
+   114→</details>
+   115→
+   116→## Long fiction and nodes
+   117→
+   118→The long-form workspace includes references, world settings, character profiles and relationships, storylines, outlines, chapter editing, foreshadowing, facts, inventories, style learning, prompt templates, usage records and version history.
+   119→
+   120→**Memory has a traceable path back to the manuscript.** Original text provides evidence; facts, relationships, events and storylines hold structured state; chapter/volume/global summaries aid navigation; retrieval finds relevant passages. Context Gateway discovers resources before reading details and records actual sources. Derived indexes and summaries are checked against source hashes, with original-text fallback when indexes are missing or stale. Work scope and chapter boundaries filter retrieval.
+   121→
+   122→For example, a recurring object late in the novel can lead back to its earlier appearance so the author can check its owner or associated promise. The source record makes the retrieved context inspectable; it does not guarantee perfect recall or literary consistency.
+   123→
+   124→**New chapters have a follow-up workflow.** Chapter settlement proposes changes to facts, character states, relationships, inventory, timelines, foreshadowing and storylines for author confirmation. Impact analysis identifies future plans needing revision while preserving confirmed history. If you reveal a secret earlier than planned, you can inspect affected future outlines and decide what to change. Version checks block stale candidates from overwriting newer edits.
+   125→
+   126→**Node mode exposes smaller building blocks.** Official node actions bind to the same long-form domain Skills and candidate/adoption chain. Authors can arrange intermediate artifacts and generation steps; improvements to a shared action serve both interfaces. Experimental node drafts cannot be adopted into canonical work. Complete cross-mode UI and lifecycle interoperability remains under validation.
+   127→
+   128→Implementation: [narrative retrieval](./src/lib/context-gateway/narrative-retrieval.ts), [chapter settlement](./src/lib/ai/chapter-memory/run-chapter-memory.ts), [long-form and node contract](./docs/products/LONGFORM-AND-NODE.md).
+   129→
+   130→Engineering tests cover 100,000 / 300,000 / 1,000,000-character workloads. These demonstrate storage and retrieval support, not a guarantee of literary quality or consistent million-word manuscripts. Model performance and author review still matter.
+   131→
+   132→## Short fiction, screenplays and comics
+   133→
+   134→### Short fiction: a visible route to completion
+   135→
+   136→The dedicated workflow targets **5,000–25,000 Chinese characters across 3–8 chapters**: confirm the brief and story design, plan chapter cards, draft and approve chapters, review, rewrite and release.
+   137→
+   138→- Completion checks inspect actual manuscript length, chapter structure, missing text and pending candidates, making unfinished work visible.
+   139→- Review issues point to chapters and supporting text. Reviews bind to the manuscript hash; edits require a current review before publication. Rewrites target specific chapters.
+   140→- Blocking issues prevent release. An accepted manuscript becomes a new frozen edition, preserving earlier releases while revision continues. Export Markdown, TXT or JSON.
+   141→
+   142→Implementation: [production and completion gates](./src/lib/short-novel/service.ts), [dedicated durable AI runs](./src/lib/agent/run/short-novel-durable.ts).
+   143→
+   144→### Screenplays: traceable adaptation, structured scenes
+   145→
+   146→The pipeline freezes selected novel sources, then connects facts and causal relationships to adaptation decisions, beats, scene cards and script scenes.
+   147→
+   148→- Source and decision mappings let authors inspect why an event was removed, merged or transformed into a scene.
+   149→- Scenes use an AST, a structured representation of script blocks. Code validates format and renders the same structure to Fountain, FDX or print.
+   150→- Source fidelity and dramatic structure have separate reviews. Revision patches name the scene, issues and expected revision; locked scenes must be unlocked first, and stale patches are blocked.
+   151→- Releases freeze sources, decisions and scenes. Later novel edits do not silently change a published screenplay.
+   152→
+   153→When turning internal monologue into a confrontation, the author can inspect both the retained source information and the resulting dramatic scene. Implementation: [production and targeted revisions](./src/lib/screenplay/production.ts), [release snapshots](./src/lib/screenplay/release.ts), [renderers](./src/lib/screenplay/renderers.ts).
+   154→
+   155→### Comics: script, visual assets and lettering as separate layers
+   156→
+   157→Comic production first develops script beats, page plans and panels, then images and lettering. Authors can assess the visual narrative before spending on image generation.
+   158→
+   159→- Stable page/panel identities and explicit reading order connect layout, shots, actions, dialogue and source evidence. Issues can target one page or panel.
+   160→- Visual subjects give characters, places and props stable identities and selected references. Image candidates record provenance and actual reference-transmission evidence for inspection and selection.
+   161→- Local SVG rendering adds editable bubbles, captions and sound effects above the images. Correcting dialogue does not require regenerating the panel. Checks flag lettering capacity, overlaps and unsafe boundaries; authors still inspect image occlusion.
+   162→- Storyboard and visual releases have distinct completion gates. Visual editions verify selected image bytes and retain strong Blob references so replacing working images does not alone remove old release media. Supported exports include PNG, WebP, CBZ and PDF.
+   163→
+   164→**Current image adapter limit:** the built-in generic OpenAI-compatible adapter sends text only and declares no reference-image, fixed-seed or inpainting capability. The app reports these limits; naming a reference in a prompt is not recorded as transmitting an image. Visual production needs a configured image service or suitable author assets, with human selection and continuity review.
+   165→
+   166→Implementation: [production](./src/lib/comic/production.ts), [media evidence](./src/lib/comic/media-service.ts), [lettering](./src/lib/comic/renderers.ts), [quality gates](./src/lib/comic/qa.ts).
+   167→
+   168→All three have their current engineering workflows implemented on `main`. Provider performance and content quality continue to be evaluated. See the [capability baseline](./docs/roadmap/CAPABILITY-BASELINE.md) for evidence and limits.
+   169→
+   170→## Worlds and interactive products
+   171→
+   172→Create a world directly or explicitly derive one from confirmed long/short fiction. Freeze a version, then configure and start production inside the selected product. Published experiences own their media, save data and private evolution. Later edits to a novel do not automatically synchronize with a derived world, and gameplay does not automatically rewrite the shared world.
+   173→
+   174→**The world engine preserves identity, provenance and immutable versions.** Derivation records the source work, revision, selected range and content hash. Only semantic content is sealed into the world; products own their images and runtime data. Product-specific adapters declare required, optional and forbidden resources and freeze a SourcePlan before production. Progressive `describe / search / read` access records per-run context and a final SourceManifest of actual reads.
+   175→
+   176→An adventure can continue using world version one while its author edits version two. A new experience can explicitly select the newer version. Developers can consume the versioned semantic interface without traversing internal world tables. See the [world resource client](./src/lib/context-gateway/world-release-client.ts) and [world contract](./docs/products/WORLD-ENGINE.md).
+   177→
+   178→Interactive products use dedicated runtime mechanisms. **All remain previews**; implemented mechanisms and complete experience validation are distinct:
+   179→
+   180→| Product | Implemented mechanisms and their purpose | Current limit |
+   181→|---|---|---|
+   182→| [TTRPG / AI KP](./src/lib/ttrpg/information-boundary.ts) | Rules, dice/effect resolution, separate KP/player/NPC contexts, recipient-filtered secrets, events and checkpoints give actions inspectable consequences | Fog Harbor has real-model production/playthrough evidence; public online multiplayer is not deployed |
+   183→| [Character chat](./src/lib/character-interaction/runtime.ts) | Frozen profiles, voice rules, scene goals, commitments/secrets/conflicts as memory, and trust/closeness/wariness/respect state preserve conversation consequences | Long-term character quality remains under evaluation |
+   184→| [Afterstory AI town](./src/lib/ai-town/runtime.ts) | Six daily time slots, place access and travel, resident knowledge and memories, relationships, light management and offline-time catch-up organize life after the original ending | 14-day replay validation exists; longitudinal model and non-fixture media quality remain under evaluation |
+   185→| [Text adventure](./src/lib/adventure/runtime.ts) | Action prerequisites, inventory, resources, abilities, quests and code-resolved checks connect progress to available actions | Complete experiences require work-specific validation |
+   186→| [AVG](./src/lib/avg/runtime.ts) | Declarative cues bind story beats to layered backgrounds, actors and audio; asset checks and stage snapshots support presentation recovery | Full audiovisual delivery remains under validation |
+   187→| [Text open world](./src/lib/open-world/runtime.ts) | Regions, travel, resources, faction influence, actor schedules, task cards/templates and time-based regional changes support persistent exploration state | Full production and long-term play remain in development |
+   188→
+   189→Online community and commercial services are later-stage work.
+   190→
+   191→## Shared execution and data architecture
+   192→
+   193→### Independent products, shared governed AI execution
+   194→
+   195→Each product owns its domain services and artifacts. **Harness is the execution and validation system around model calls**: it records task contracts, actual inputs, candidates, versions, checkpoints and results, connecting that evidence to the work.
+   196→
+   197→```mermaid
+   198→flowchart TB
+   199→  subgraph PRODUCTS["Products · domain services and separate ownership"]
+   200→    L["Long fiction / Nodes"]
+   201→    C["Short fiction / Screenplays / Comics"]
+   202→    W["World engine"]
+   203→    I["TTRPG / Character chat / AI town / Text games"]
+   204→  end
+   205→  L & C & W & I --> H["Shared Harness · Formal AI tasks<br/>Skill + Run Contract · Budget · Versions · Recovery"]
+   206→  H --> G["Context Gateway / Memory<br/>Registered sources · Retrieval · Original evidence"]
+   207→  H --> M["Model adapters<br/>Candidates and raw responses"]
+   208→  H --> A["Formal authoring adoption<br/>Author approval · Validation · adopt"]
+   209→  H -.-> E["Durable ledger<br/>Events · Checkpoints · Verification receipts"]
+   210→  G -->|"Scoped reads"| D["Local data and files<br/>IndexedDB / File and media storage<br/>PROJECT_TABLES governs lifecycles"]
+   211→  A -->|"Transactional writes and readback"| D
+   212→  E --> D
+   213→  classDef engine fill:#e8f0fa,stroke:#5279a4,color:#18324f
+   214→  classDef author fill:#fff2df,stroke:#b58a45,color:#593b16
+   215→  classDef data fill:#eaf4ee,stroke:#628b73,color:#254a34
+   216→  class H,M,E engine
+   217→  class A author
+   218→  class G,D data
+   219→```
+   220→
+   221→Arrows show dependencies or data access, not execution order. Long and short fiction do not require the world engine. Interactive runtimes use product-specific commands and state machines; each product owns its media and saves. The next diagram follows formal long-fiction authoring.
+   222→
+   223→### How Harness maintains long-term consistency
+   224→
+   225→Consistency depends on a continuing cycle: **retrieve evidence, approve changes, and make the correct version available to the next task**. Chapter generation, memory settlement, review and future planning each contribute.
+   226→
+   227→```mermaid
+   228→flowchart TB
+   229→  K["Confirmed records<br/>Text / Facts / State / Clues"]
+   230→  K --> R["1. Freeze task and retrieve<br/>Scope, time, versions and deficits"]
+   231→  R --> C["2. Generate and check candidate<br/>Structure, information boundaries<br/>Semantic review when configured"]
+   232→  C --> A["3. Author approval and version check<br/>Adopt → Read back → Receipt"]
+   233→  A --> P["4. Settlement and future impact<br/>Propose changes → Author approval"]
+   234→  P -->|"Update records and indexes for later chapters"| K
+   235→  R -. "Required evidence missing" .-> X["Pause / Reject writeback<br/>Preserve evidence for resolution"]
+   236→  A -. "Source or target is stale" .-> X
+   237→  classDef engine fill:#e8f0fa,stroke:#5279a4,color:#18324f
+   238→  classDef author fill:#fff2df,stroke:#b58a45,color:#593b16
+   239→  classDef data fill:#eaf4ee,stroke:#628b73,color:#254a34
+   240→  classDef paused fill:#f7eaea,stroke:#b27a7a,color:#6a3030
+   241→  class R,C engine
+   242→  class A,P author
+   243→  class K data
+   244→  class X paused
+   245→```
+   246→
+   247→Each formal run also persists its ledger and checkpoints. Settlement and future revisions are separate, bounded runs with their own version checks and approvals; the loop can span multiple writing sessions.
+   248→
+   249→| Consistency risk | Implemented control | Inspectable evidence |
+   250→|---|---|---|
+   251→| Forgotten early facts or clues | Structured facts, layered summaries and long-tail retrieval lead back to original text; required-source deficits block progress | Context Manifest with sources, hashes, actual reads and missing evidence |
+   252→| Wrong work or premature knowledge | Work/world scope and task time boundaries filter sources; information-boundary checks apply | Source scope and boundary evidence |
+   253→| Author edits while generation is running | Adoption rechecks relevant context and target revisions; stale candidates cannot overwrite newer work | Input versions, stale status and retained output |
+   254→| A saved chapter fails to carry forward | Readback verifies persisted state; settlement connects memory, retrieval and storylines; authors handle future-impact candidates | Adoption events, post-state, linked runs and receipts |
+   255→| Review no longer matches the manuscript | Explicit consistency audits bind to the text hash; edits invalidate old audit evidence | Recoverable audit candidates, sources and findings |
+   256→| Refresh or interruption breaks the process | Verified checkpoints restore saved candidates with version checks; unknown external outcomes are not blindly retried | Run, attempt, checkpoint and terminal records |
+   257→
+   258→For example, chapter 8 establishes who holds a unique token. When chapter 80 needs it, retrieval supplies the original passage and confirmed ownership state. If the author changes ownership while a candidate is awaiting approval, revision checks block direct adoption of the stale result. After the new chapter is accepted, confirmed settlement updates become available to later chapters. This illustrates the mechanism; detecting every implicit contradiction still depends on review and author judgment.
+   259→
+   260→### Evidence you can inspect
+   261→
+   262→These existing regression tests cover concrete promises and failure cases:
+   263→
+   264→| Claim | Regression evidence |
+   265→|---|---|
+   266→| Distant, middle and recent evidence at 100k / 300k / 1m characters; future/wrong-world isolation | [Long-form scale gate](./tests/regression/R-PHASE4-long-form-scale-gate.test.ts) |
+   267→| Missing required evidence blocks progress; exact edit targets cannot degrade to a prefix | [Gateway execution](./tests/regression/R-CTXG7-gateway-execution.test.ts) |
+   268→| Changed prose or upstream settings block stale adoption | [Prose adoption](./tests/regression/R-HARNESS7-prose-generation-durable.test.ts) |
+   269→| Saved chapter-settlement candidates recover without another model call | [Settlement recovery](./tests/regression/R-HARNESS20-chapter-post-adoption-durable.test.ts) |
+   270→| Text changes invalidate audits; unknown model outcomes do not auto-retry | [Explicit consistency audit](./tests/regression/R-MEMORY-CLOSE1-consistency-audit-durable.test.ts) |
+   271→| Written history is preserved and upstream changes invalidate future plans | [Future evolution boundaries](./tests/regression/R-FUTURE1-continuous-evolution.test.ts) |
+   272→
+   273→Implementation: [formal prose runs](./src/lib/agent/run/prose-generation-durable.ts), [verification receipts](./src/lib/agent/run/verification-receipt.ts), [architecture](./docs/ARCHITECTURE.md), [Harness standard](./docs/HARNESS-QUALITY-STANDARD.md).
+   274→
+   275→**Scope of assurance:** deterministic code checks versions, scope, structure, state transitions and writeback rules. Semantic review depends on task configuration or explicit author action. Subtext, metaphors, unregistered clues and literary quality still require model and human judgment. Scale fixtures demonstrate engineering behavior, not verified literary consistency across a million-word novel. Recovery covers persisted state; auxiliary and experimental entries retain their explicitly registered limits.
+   276→
+   277→## Models, storage and privacy
+   278→
+   279→- Bring your own cloud provider or use a compatible local model service such as Ollama or LM Studio. Provider presets are connection options, not certification that every model works equally well for every product.
+   280→- Cloud generation sends the task's selected context to your configured provider. Local-first does not mean every AI request is offline.
+   281→- Work and saves live in IndexedDB for the current browser profile and origin. Changing browser, hostname or port does not move your data.
+   282→- API Keys last for the current browser session by default. Explicitly choosing “remember on this device” stores them in localStorage.
+   283→- Export a **full JSON backup** before changing devices or clearing browser data. Markdown/TXT exports do not replace full backups; use the product/workspace export paths for media.
+   284→- Local folder access is user-authorized. See the [memory workspace guide](./docs/MEMORY-WORKSPACE-GUIDE.md).
+   285→- Optional GitHub Gist backup uploads full project JSON to your private Gist. It is not end-to-end encrypted storage.
+   286→
+   287→## Community and contributing
+   288→
+   289→- [Bilibili video guide](https://www.bilibili.com/video/BV1q37j6QExh/) and [Zhihu introduction](https://zhuanlan.zhihu.com/p/2038714210188780594): historical Chinese tutorials; menus may differ from current versions.
+   290→- QQ community: **1082374587**.
+   291→- [Developer's project site](https://yuanbw.vercel.app/) and [GitHub Issues](https://github.com/yuanbw2025/storyforge/issues).
+   292→- [Developer’s Zhihu profile](https://www.zhihu.com/people/dan-ran-xing-yuan-59).
+   293→
+   294→For bugs, include the app version, browser/OS, steps, expected behavior and actual result. Remove secrets and private writing from screenshots and logs. Stars, tutorials, examples, translations and contributions are welcome.
+   295→
+   296→StoryForge uses React, TypeScript, Vite, Zustand, TipTap and Dexie. Registered context sources, governed adoption and table lifecycle registries support the shared Agent/Harness infrastructure.
+   297→
+   298→```bash
+   299→npm run ci
+   300→npm run ci:e2e
+   301→```
+   302→
+   303→Read [AGENTS.md](./AGENTS.md), [CONTRIBUTING.md](./CONTRIBUTING.md) and the [collaboration workflow](./docs/COLLAB-WORKFLOW.md) before contributing. Product boundaries are defined in the [project charter](./docs/PROJECT-MASTER-CHARTER.md).
+   304→
+   305→## Star history and support
+   306→
+   307→[![StoryForge Star History](https://raw.githubusercontent.com/yuanbw2025/storyforge/readme-assets/storyforge-star-history.svg)](https://www.star-history.com/?repos=yuanbw2025%2Fstoryforge&type=date&legend=top-left)
+   308→
+   309→Sponsorship is voluntary and does not change access to features or future updates. It supports model subscriptions and maintenance. See [sponsorship details](./README.md#自愿赞助).
+   310→
+   311→Code is licensed under [MIT](./LICENSE). Original works, models, third-party media and outputs retain their respective terms. See the [TTRPG SRD license notice](./docs/ttrpg/licenses/SRD-5.2.1-CC-BY-4.0.md) where applicable.
+   312→

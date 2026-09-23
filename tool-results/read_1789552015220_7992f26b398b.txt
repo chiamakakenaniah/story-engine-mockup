@@ -1,0 +1,873 @@
+     1→import { CONTEXT_SOURCE_BY_KEY } from '../../registry/context-sources'
+     2→import { FIELD_BY_TARGET } from '../../registry/field-registry'
+     3→import { ADOPTION_EXTENSIONS } from '../../registry/adoption-schema'
+     4→import { REGISTRY_BY_NAME } from '../../registry/project-tables'
+     5→import type {
+     6→  AcceptedAgentRunContract,
+     7→  AcceptedAgentRunContractV1,
+     8→  AcceptedAgentRunContractV2,
+     9→  AcceptedAgentRunContractV3,
+    10→  AgentRunAcceptanceCriterionV1,
+    11→  AgentRunAcceptanceKind,
+    12→  AgentRunContract,
+    13→  AgentRunContractV1,
+    14→  AgentRunContractV2,
+    15→  AgentRunContractV3,
+    16→  AgentExecutionBoundaryV1,
+    17→  AgentRunParentLineageV1,
+    18→  AgentRunStepExecutionBindingV2,
+    19→  AgentRunVerificationKind,
+    20→  AgentRunVerificationStepV1,
+    21→  AgentRunWorkflowKind,
+    22→  AgentRunStepExecutionBindingV1,
+    23→  AgentRunWriteMode,
+    24→  AgentRunWriteTargetV1,
+    25→} from '../../types/agent-run'
+    26→import { hashCanonicalValue } from './hash'
+    27→import { assertAgentSkillExecutionBindingIntegrityV2 } from '../execution-binding'
+    28→import {
+    29→  assertExactKeys,
+    30→  assertUnique,
+    31→  failSchema,
+    32→  readArray,
+    33→  readBoolean,
+    34→  readEnum,
+    35→  readHash,
+    36→  readInteger,
+    37→  readNonNegativeNumber,
+    38→  readRecord,
+    39→  readString,
+    40→} from './schema-utils'
+    41→
+    42→const WORKFLOW_KINDS: readonly AgentRunWorkflowKind[] = [
+    43→  'direct-generation',
+    44→  'read-only-audit',
+    45→  'plan-execute',
+    46→  'generate-verify-revise',
+    47→  'multi-domain-sequential',
+    48→  'fan-out-synthesize',
+    49→  'long-running-resumable',
+    50→]
+    51→const EXECUTION_BOUNDARIES: readonly AgentExecutionBoundaryV1[] = [
+    52→  'formal',
+    53→  'evaluation',
+    54→  'product-runtime',
+    55→  'experimental',
+    56→]
+    57→
+    58→const WRITE_MODES: readonly AgentRunWriteMode[] = ['none', 'candidate-only', 'author-confirmed']
+    59→const ACCEPTANCE_KINDS: readonly AgentRunAcceptanceKind[] = [
+    60→  'output-present',
+    61→  'gate-passed',
+    62→  'author-confirmed',
+    63→  'adoption-committed',
+    64→  'post-state-matches',
+    65→  'deterministic-check',
+    66→  'semantic-review',
+    67→]
+    68→const VERIFICATION_KINDS: readonly AgentRunVerificationKind[] = [
+    69→  'protocol',
+    70→  'scope',
+    71→  'freshness',
+    72→  'adoption',
+    73→  'deterministic',
+    74→  'semantic',
+    75→  'terminal',
+    76→]
+    77→
+    78→function readIdArray(value: unknown, path: string): number[] | undefined {
+    79→  if (value === undefined) return undefined
+    80→  const result = readArray(value, path).map((item, index) => readInteger(item, `${path}[${index}]`, { min: 1 }))
+    81→  if (new Set(result).size !== result.length) failSchema('duplicate_value', path, '不得包含重复 ID')
+    82→  return result
+    83→}
+    84→
+    85→function readWriteTarget(value: unknown, path: string): AgentRunWriteTargetV1 {
+    86→  const record = readRecord(value, path)
+    87→  assertExactKeys(record, ['table', 'fields', 'mode', 'adoptionExtension'], ['table', 'fields', 'mode'], path)
+    88→  const table = readString(record.table, `${path}.table`, { max: 100 })
+    89→  if (!REGISTRY_BY_NAME.has(table)) failSchema('unknown_table', `${path}.table`, `未登记的数据表 ${table}`)
+    90→  const fields = readArray(record.fields, `${path}.fields`).map((item, index) => (
+    91→    readString(item, `${path}.fields[${index}]`, { max: 100 })
+    92→  ))
+    93→  assertUnique(fields, `${path}.fields`)
+    94→  const mode = readEnum(record.mode, WRITE_MODES, `${path}.mode`)
+    95→  const adoptionExtension = record.adoptionExtension === undefined
+    96→    ? undefined
+    97→    : readString(record.adoptionExtension, `${path}.adoptionExtension`, { max: 120 })
+    98→  const extension = adoptionExtension
+    99→    ? ADOPTION_EXTENSIONS.find(item => item.id === adoptionExtension)
+   100→    : undefined
+   101→  if (adoptionExtension && (!extension || extension.target !== table)) {
+   102→    failSchema(
+   103→      'unknown_adoption_extension',
+   104→      `${path}.adoptionExtension`,
+   105→      `未登记或与目标表不匹配的采纳扩展 ${adoptionExtension}`,
+   106→    )
+   107→  }
+   108→  if (mode === 'none' && fields.length > 0) {
+   109→    failSchema('invalid_permission', path, 'mode=none 时不得声明可写字段')
+   110→  }
+   111→  if (mode !== 'none' && fields.length === 0 && !adoptionExtension) {
+   112→    failSchema('invalid_permission', path, '可写目标必须声明至少一个字段')
+   113→  }
+   114→  const registeredFields = new Set((FIELD_BY_TARGET.get(table) ?? []).map(field => field.field))
+   115→  for (const field of fields) {
+   116→    if (!registeredFields.has(field)) {
+   117→      failSchema('unknown_write_field', `${path}.fields`, `${table}.${field} 未在 FIELD_REGISTRY 登记`)
+   118→    }
+   119→  }
+   120→  return {
+   121→    table,
+   122→    fields,
+   123→    mode,
+   124→    ...(adoptionExtension ? { adoptionExtension } : {}),
+   125→  }
+   126→}
+   127→
+   128→function readAcceptance(value: unknown, path: string): AgentRunAcceptanceCriterionV1 {
+   129→  const record = readRecord(value, path)
+   130→  assertExactKeys(record, ['id', 'kind', 'required'], ['id', 'kind', 'required'], path)
+   131→  return {
+   132→    id: readString(record.id, `${path}.id`, { max: 120 }),
+   133→    kind: readEnum(record.kind, ACCEPTANCE_KINDS, `${path}.kind`),
+   134→    required: readBoolean(record.required, `${path}.required`),
+   135→  }
+   136→}
+   137→
+   138→function readVerificationStep(value: unknown, path: string): AgentRunVerificationStepV1 {
+   139→  const record = readRecord(value, path)
+   140→  assertExactKeys(record, ['id', 'kind', 'verifier', 'criterionIds'], ['id', 'kind', 'verifier', 'criterionIds'], path)
+   141→  const criterionIds = readArray(record.criterionIds, `${path}.criterionIds`).map((item, index) => (
+   142→    readString(item, `${path}.criterionIds[${index}]`, { max: 120 })
+   143→  ))
+   144→  assertUnique(criterionIds, `${path}.criterionIds`)
+   145→  if (criterionIds.length === 0) failSchema('invalid_verification', `${path}.criterionIds`, '不得为空')
+   146→  return {
+   147→    id: readString(record.id, `${path}.id`, { max: 120 }),
+   148→    kind: readEnum(record.kind, VERIFICATION_KINDS, `${path}.kind`),
+   149→    verifier: readString(record.verifier, `${path}.verifier`, { max: 160 }),
+   150→    criterionIds,
+   151→  }
+   152→}
+   153→
+   154→function readExecutionBinding(value: unknown, path: string): AgentRunStepExecutionBindingV1 {
+   155→  const record = readRecord(value, path)
+   156→  const keys = [
+   157→    'stepId',
+   158→    'version',
+   159→    'skillId',
+   160→    'skillVersion',
+   161→    'promptVersion',
+   162→    'toolSchemaVersion',
+   163→    'toolSchemaHash',
+   164→    'promptExecution',
+   165→    'formalEntry',
+   166→  ] as const
+   167→  assertExactKeys(record, keys, keys.filter(key => key !== 'promptExecution' && key !== 'formalEntry'), path)
+   168→  if (record.version !== 1 || record.skillVersion !== 1) {
+   169→    failSchema('unsupported_version', path, '仅支持 execution binding v1 / Skill v1')
+   170→  }
+   171→  let promptExecution: AgentRunStepExecutionBindingV1['promptExecution']
+   172→  if (record.promptExecution !== undefined) {
+   173→    const prompt = readRecord(record.promptExecution, `${path}.promptExecution`)
+   174→    const promptKeys = [
+   175→      'version', 'moduleKey', 'templateId', 'templateName', 'templateScope',
+   176→      'templateUpdatedAt', 'templateHash', 'parameterValuesHash', 'overridesHash',
+   177→    ] as const
+   178→    assertExactKeys(prompt, promptKeys, promptKeys, `${path}.promptExecution`)
+   179→    if (prompt.version !== 1) failSchema('unsupported_version', `${path}.promptExecution.version`, '仅支持 v1')
+   180→    if (prompt.templateScope !== 'system' && prompt.templateScope !== 'user') {
+   181→      failSchema('invalid_value', `${path}.promptExecution.templateScope`, '必须是 system 或 user')
+   182→    }
+   183→    promptExecution = {
+   184→      version: 1,
+   185→      moduleKey: readString(prompt.moduleKey, `${path}.promptExecution.moduleKey`, { max: 160 }),
+   186→      templateId: prompt.templateId === null
+   187→        ? null
+   188→        : readInteger(prompt.templateId, `${path}.promptExecution.templateId`, { min: 1 }),
+   189→      templateName: readString(prompt.templateName, `${path}.promptExecution.templateName`, { max: 500 }),
+   190→      templateScope: prompt.templateScope,
+   191→      templateUpdatedAt: readInteger(prompt.templateUpdatedAt, `${path}.promptExecution.templateUpdatedAt`),
+   192→      templateHash: readHash(prompt.templateHash, `${path}.promptExecution.templateHash`),
+   193→      parameterValuesHash: readHash(prompt.parameterValuesHash, `${path}.promptExecution.parameterValuesHash`),
+   194→      overridesHash: readHash(prompt.overridesHash, `${path}.promptExecution.overridesHash`),
+   195→    }
+   196→  }
+   197→  let formalEntry: AgentRunStepExecutionBindingV1['formalEntry']
+   198→  if (record.formalEntry !== undefined) {
+   199→    const entry = readRecord(record.formalEntry, `${path}.formalEntry`)
+   200→    const entryKeys = ['version', 'entryId', 'bindingJson', 'bindingHash'] as const
+   201→    assertExactKeys(entry, entryKeys, entryKeys, `${path}.formalEntry`)
+   202→    if (entry.version !== 1) failSchema('unsupported_version', `${path}.formalEntry.version`, '仅支持 v1')
+   203→    formalEntry = {
+   204→      version: 1,
+   205→      entryId: readString(entry.entryId, `${path}.formalEntry.entryId`, { max: 160 }),
+   206→      bindingJson: readString(entry.bindingJson, `${path}.formalEntry.bindingJson`, { max: 100_000 }),
+   207→      bindingHash: readHash(entry.bindingHash, `${path}.formalEntry.bindingHash`),
+   208→    }
+   209→  }
+   210→  return {
+   211→    stepId: readString(record.stepId, `${path}.stepId`, { max: 160 }),
+   212→    version: 1,
+   213→    skillId: readString(record.skillId, `${path}.skillId`, { max: 160 }),
+   214→    skillVersion: 1,
+   215→    promptVersion: readString(record.promptVersion, `${path}.promptVersion`, { max: 160 }),
+   216→    toolSchemaVersion: readString(record.toolSchemaVersion, `${path}.toolSchemaVersion`, { max: 160 }),
+   217→    toolSchemaHash: readHash(record.toolSchemaHash, `${path}.toolSchemaHash`),
+   218→    ...(promptExecution ? { promptExecution } : {}),
+   219→    ...(formalEntry ? { formalEntry } : {}),
+   220→  }
+   221→}
+   222→
+   223→function readExecutionBindingV2(value: unknown, path: string): AgentRunStepExecutionBindingV2 {
+   224→  const record = readRecord(value, path)
+   225→  const keys = [
+   226→    'stepId',
+   227→    'version',
+   228→    'skillId',
+   229→    'skillVersion',
+   230→    'skillDefinitionJson',
+   231→    'skillDefinitionHash',
+   232→    'contextAccessPolicyHash',
+   233→    'promptVersion',
+   234→    'toolSchemaVersion',
+   235→    'toolSchemaHash',
+   236→    'contextSourceKeys',
+   237→    'optionalContextActivations',
+   238→    'writeTargets',
+   239→    'maxOutputTokens',
+   240→    'formalEntry',
+   241→  ] as const
+   242→  assertExactKeys(record, keys, keys.filter(key => key !== 'formalEntry'), path)
+   243→  if (record.version !== 2 || record.skillVersion !== 2) {
+   244→    failSchema('unsupported_version', path, '仅支持 execution binding v2 / Skill snapshot v2')
+   245→  }
+   246→  const contextSourceKeys = readArray(record.contextSourceKeys, `${path}.contextSourceKeys`)
+   247→    .map((item, index) => readString(item, `${path}.contextSourceKeys[${index}]`, { max: 160 }))
+   248→  assertUnique(contextSourceKeys, `${path}.contextSourceKeys`)
+   249→  for (const sourceKey of contextSourceKeys) {
+   250→    if (!CONTEXT_SOURCE_BY_KEY.has(sourceKey)) {
+   251→      failSchema('unknown_context_source', `${path}.contextSourceKeys`, `未登记的上下文源 ${sourceKey}`)
+   252→    }
+   253→  }
+   254→  const optionalContextActivations = readArray(
+   255→    record.optionalContextActivations,
+   256→    `${path}.optionalContextActivations`,
+   257→  ).map((item, index) => {
+   258→    const activationPath = `${path}.optionalContextActivations[${index}]`
+   259→    const activation = readRecord(item, activationPath)
+   260→    assertExactKeys(
+   261→      activation,
+   262→      ['sourceKey', 'reasonCode', 'boundaryHash'],
+   263→      ['sourceKey', 'reasonCode'],
+   264→      activationPath,
+   265→    )
+   266→    return {
+   267→      sourceKey: readString(activation.sourceKey, `${activationPath}.sourceKey`, { max: 160 }),
+   268→      reasonCode: readEnum(
+   269→        activation.reasonCode,
+   270→        ['perspective-character', 'prior-outline-candidate', 'explicit-runtime-boundary'],
+   271→        `${activationPath}.reasonCode`,
+   272→      ),
+   273→      ...(activation.boundaryHash === undefined ? {} : {
+   274→        boundaryHash: readHash(activation.boundaryHash, `${activationPath}.boundaryHash`),
+   275→      }),
+   276→    }
+   277→  })
+   278→  assertUnique(optionalContextActivations.map(item => item.sourceKey), `${path}.optionalContextActivations`)
+   279→  for (const activation of optionalContextActivations) {
+   280→    if (!contextSourceKeys.includes(activation.sourceKey)) {
+   281→      failSchema('invalid_execution_binding', path, `激活来源 ${activation.sourceKey} 未进入实际上下文集合`)
+   282→    }
+   283→  }
+   284→  const writeTargets = readArray(record.writeTargets, `${path}.writeTargets`)
+   285→    .map((item, index) => readWriteTarget(item, `${path}.writeTargets[${index}]`))
+   286→  assertUnique(
+   287→    writeTargets.map(item => `${item.table}:${item.adoptionExtension ?? ''}`),
+   288→    `${path}.writeTargets`,
+   289→  )
+   290→  const formalEntry = record.formalEntry === undefined
+   291→    ? undefined
+   292→    : readExecutionBinding({
+   293→      stepId: record.stepId,
+   294→      version: 1,
+   295→      skillId: record.skillId,
+   296→      skillVersion: 1,
+   297→      promptVersion: record.promptVersion,
+   298→      toolSchemaVersion: record.toolSchemaVersion,
+   299→      toolSchemaHash: record.toolSchemaHash,
+   300→      formalEntry: record.formalEntry,
+   301→    }, `${path}.formalEntryCarrier`).formalEntry
+   302→  return {
+   303→    stepId: readString(record.stepId, `${path}.stepId`, { max: 160 }),
+   304→    version: 2,
+   305→    skillId: readString(record.skillId, `${path}.skillId`, { max: 160 }),
+   306→    skillVersion: 2,
+   307→    skillDefinitionJson: readString(record.skillDefinitionJson, `${path}.skillDefinitionJson`, { max: 100_000 }),
+   308→    skillDefinitionHash: readHash(record.skillDefinitionHash, `${path}.skillDefinitionHash`),
+   309→    contextAccessPolicyHash: readHash(record.contextAccessPolicyHash, `${path}.contextAccessPolicyHash`),
+   310→    promptVersion: readString(record.promptVersion, `${path}.promptVersion`, { max: 160 }),
+   311→    toolSchemaVersion: readString(record.toolSchemaVersion, `${path}.toolSchemaVersion`, { max: 160 }),
+   312→    toolSchemaHash: readHash(record.toolSchemaHash, `${path}.toolSchemaHash`),
+   313→    contextSourceKeys,
+   314→    optionalContextActivations,
+   315→    writeTargets,
+   316→    maxOutputTokens: readInteger(record.maxOutputTokens, `${path}.maxOutputTokens`, { min: 1 }),
+   317→    ...(formalEntry ? { formalEntry } : {}),
+   318→  }
+   319→}
+   320→
+   321→function readParentLineage(value: unknown, path: string): AgentRunParentLineageV1 {
+   322→  const record = readRecord(value, path)
+   323→  assertExactKeys(
+   324→    record,
+   325→    ['runId', 'receiptHash', 'relation', 'artifactHash'],
+   326→    ['runId', 'receiptHash', 'relation'],
+   327→    path,
+   328→  )
+   329→  return {
+   330→    runId: readInteger(record.runId, `${path}.runId`, { min: 1 }),
+   331→    receiptHash: readHash(record.receiptHash, `${path}.receiptHash`),
+   332→    relation: readString(record.relation, `${path}.relation`, { max: 120 }),
+   333→    ...(record.artifactHash === undefined ? {} : {
+   334→      artifactHash: readHash(record.artifactHash, `${path}.artifactHash`),
+   335→    }),
+   336→  }
+   337→}
+   338→
+   339→function parseAgentRunContractV1Base(
+   340→  value: unknown,
+   341→  bindingCarriedBySkillSnapshot: boolean,
+   342→): AgentRunContractV1 {
+   343→  const record = readRecord(value, 'contract')
+   344→  assertExactKeys(
+   345→    record,
+   346→    ['version', 'objective', 'workflowKind', 'ownership', 'lineage', 'scope', 'permissions', 'runtimeBindingHash', 'executionBindings', 'dependencyReceiptPolicy', 'candidateSemanticReviewPolicy', 'automationAuthorization', 'budget', 'acceptance', 'verificationPlan', 'failurePolicy'],
+   347→    ['version', 'objective', 'workflowKind', 'scope', 'permissions', 'budget', 'acceptance', 'verificationPlan', 'failurePolicy'],
+   348→    'contract',
+   349→  )
+   350→  if (record.version !== 1) failSchema('unsupported_version', 'contract.version', '仅支持版本 1')
+   351→
+   352→  let ownership: AgentRunContractV1['ownership']
+   353→  if (record.ownership !== undefined) {
+   354→    const ownershipRecord = readRecord(record.ownership, 'contract.ownership')
+   355→    assertExactKeys(ownershipRecord, ['parentRunId', 'relation'], ['parentRunId', 'relation'], 'contract.ownership')
+   356→    ownership = {
+   357→      parentRunId: readInteger(ownershipRecord.parentRunId, 'contract.ownership.parentRunId', { min: 1 }),
+   358→      relation: readString(ownershipRecord.relation, 'contract.ownership.relation', { max: 220 }),
+   359→    }
+   360→  }
+   361→
+   362→  let lineage: AgentRunContractV1['lineage']
+   363→  if (record.lineage !== undefined) {
+   364→    const lineageRecord = readRecord(record.lineage, 'contract.lineage')
+   365→    assertExactKeys(lineageRecord, ['parent'], ['parent'], 'contract.lineage')
+   366→    lineage = { parent: readParentLineage(lineageRecord.parent, 'contract.lineage.parent') }
+   367→  }
+   368→  if (ownership && lineage) {
+   369→    failSchema('invalid_parent_relation', 'contract', 'ownership 与 lineage 互斥')
+   370→  }
+   371→
+   372→  const scopeRecord = readRecord(record.scope, 'contract.scope')
+   373→  assertExactKeys(
+   374→    scopeRecord,
+   375→    ['projectId', 'worldGroupId', 'chapterIds', 'outlineNodeIds', 'runtime', 'productProduction'],
+   376→    ['projectId', 'worldGroupId'],
+   377→    'contract.scope',
+   378→  )
+   379→  const worldGroupId = scopeRecord.worldGroupId === null
+   380→    ? null
+   381→    : readInteger(scopeRecord.worldGroupId, 'contract.scope.worldGroupId', { min: 1 })
+   382→  let runtime: AgentRunContractV1['scope']['runtime']
+   383→  if (scopeRecord.runtime !== undefined) {
+   384→    const runtimeRecord = readRecord(scopeRecord.runtime, 'contract.scope.runtime')
+   385→    assertExactKeys(
+   386→      runtimeRecord,
+   387→      ['productRuntimeSessionId', 'baseSequence', 'stateHash', 'visibilityHash', 'releaseHash'],
+   388→      ['productRuntimeSessionId', 'baseSequence', 'stateHash', 'visibilityHash', 'releaseHash'],
+   389→      'contract.scope.runtime',
+   390→    )
+   391→    runtime = {
+   392→      productRuntimeSessionId: readInteger(runtimeRecord.productRuntimeSessionId, 'contract.scope.runtime.productRuntimeSessionId', { min: 1 }),
+   393→      baseSequence: readInteger(runtimeRecord.baseSequence, 'contract.scope.runtime.baseSequence', { min: 0 }),
+   394→      stateHash: readHash(runtimeRecord.stateHash, 'contract.scope.runtime.stateHash'),
+   395→      visibilityHash: readHash(runtimeRecord.visibilityHash, 'contract.scope.runtime.visibilityHash'),
+   396→      releaseHash: readHash(runtimeRecord.releaseHash, 'contract.scope.runtime.releaseHash'),
+   397→    }
+   398→  }
+   399→  let productProduction: AgentRunContractV1['scope']['productProduction']
+   400→  if (scopeRecord.productProduction !== undefined) {
+   401→    const productionRecord = readRecord(scopeRecord.productProduction, 'contract.scope.productProduction')
+   402→    assertExactKeys(
+   403→      productionRecord,
+   404→      ['productBuildId', 'buildNumber', 'controlEpoch', 'planHash', 'taskKey'],
+   405→      ['productBuildId', 'buildNumber', 'controlEpoch', 'planHash', 'taskKey'],
+   406→      'contract.scope.productProduction',
+   407→    )
+   408→    productProduction = {
+   409→      productBuildId: readInteger(productionRecord.productBuildId, 'contract.scope.productProduction.productBuildId', { min: 1 }),
+   410→      buildNumber: readInteger(productionRecord.buildNumber, 'contract.scope.productProduction.buildNumber', { min: 1 }),
+   411→      controlEpoch: readInteger(productionRecord.controlEpoch, 'contract.scope.productProduction.controlEpoch', { min: 0 }),
+   412→      planHash: readHash(productionRecord.planHash, 'contract.scope.productProduction.planHash'),
+   413→      taskKey: readString(productionRecord.taskKey, 'contract.scope.productProduction.taskKey', { max: 200 }),
+   414→    }
+   415→  }
+   416→  if (runtime && productProduction) {
+   417→    failSchema('invalid_scope', 'contract.scope', 'runtime 与 productProduction 运行边界互斥')
+   418→  }
+   419→
+   420→  const permissionsRecord = readRecord(record.permissions, 'contract.permissions')
+   421→  assertExactKeys(
+   422→    permissionsRecord,
+   423→    ['contextSourceKeys', 'writeTargets'],
+   424→    ['contextSourceKeys', 'writeTargets'],
+   425→    'contract.permissions',
+   426→  )
+   427→  const contextSourceKeys = readArray(
+   428→    permissionsRecord.contextSourceKeys,
+   429→    'contract.permissions.contextSourceKeys',
+   430→  ).map((item, index) => readString(item, `contract.permissions.contextSourceKeys[${index}]`, { max: 120 }))
+   431→  if (contextSourceKeys.length === 0) {
+   432→    failSchema('invalid_permission', 'contract.permissions.contextSourceKeys', '不得为空')
+   433→  }
+   434→  assertUnique(contextSourceKeys, 'contract.permissions.contextSourceKeys')
+   435→  for (const sourceKey of contextSourceKeys) {
+   436→    if (!CONTEXT_SOURCE_BY_KEY.has(sourceKey)) {
+   437→      failSchema('unknown_context_source', 'contract.permissions.contextSourceKeys', `未登记的上下文源 ${sourceKey}`)
+   438→    }
+   439→  }
+   440→  const writeTargets = readArray(
+   441→    permissionsRecord.writeTargets,
+   442→    'contract.permissions.writeTargets',
+   443→  ).map((item, index) => readWriteTarget(item, `contract.permissions.writeTargets[${index}]`))
+   444→  assertUnique(writeTargets.map(target => target.table), 'contract.permissions.writeTargets')
+   445→  const executionBindings = record.executionBindings === undefined
+   446→    ? undefined
+   447→    : readArray(record.executionBindings, 'contract.executionBindings')
+   448→        .map((item, index) => readExecutionBinding(item, `contract.executionBindings[${index}]`))
+   449→  if (executionBindings?.length === 0) {
+   450→    failSchema('invalid_execution_binding', 'contract.executionBindings', '存在字段时不得为空')
+   451→  }
+   452→  if (executionBindings) assertUnique(executionBindings.map(item => item.stepId), 'contract.executionBindings')
+   453→  if (!bindingCarriedBySkillSnapshot && record.runtimeBindingHash === undefined && executionBindings === undefined) {
+   454→    failSchema(
+   455→      'missing_execution_binding',
+   456→      'contract',
+   457→      '当前 RunContract 必须冻结 runtimeBindingHash 或 executionBindings',
+   458→    )
+   459→  }
+   460→
+   461→  let dependencyReceiptPolicy: AgentRunContractV1['dependencyReceiptPolicy']
+   462→  if (record.dependencyReceiptPolicy !== undefined) {
+   463→    const policy = readRecord(record.dependencyReceiptPolicy, 'contract.dependencyReceiptPolicy')
+   464→    assertExactKeys(
+   465→      policy,
+   466→      ['requiredForJoin', 'verifierSetVersion'],
+   467→      ['requiredForJoin', 'verifierSetVersion'],
+   468→      'contract.dependencyReceiptPolicy',
+   469→    )
+   470→    if (policy.requiredForJoin !== true) {
+   471→      failSchema(
+   472→        'invalid_value',
+   473→        'contract.dependencyReceiptPolicy.requiredForJoin',
+   474→        '存在策略时必须启用 join 回执',
+   475→      )
+   476→    }
+   477→    dependencyReceiptPolicy = {
+   478→      requiredForJoin: true,
+   479→      verifierSetVersion: readString(
+   480→        policy.verifierSetVersion,
+   481→        'contract.dependencyReceiptPolicy.verifierSetVersion',
+   482→        { max: 160 },
+   483→      ),
+   484→    }
+   485→  }
+   486→
+   487→  let candidateSemanticReviewPolicy: AgentRunContractV1['candidateSemanticReviewPolicy']
+   488→  if (record.candidateSemanticReviewPolicy !== undefined) {
+   489→    const policy = readRecord(
+   490→      record.candidateSemanticReviewPolicy,
+   491→      'contract.candidateSemanticReviewPolicy',
+   492→    )
+   493→    assertExactKeys(
+   494→      policy,
+   495→      ['requiredForJoin', 'verifierSetVersion', 'taskIds'],
+   496→      ['requiredForJoin', 'verifierSetVersion', 'taskIds'],
+   497→      'contract.candidateSemanticReviewPolicy',
+   498→    )
+   499→    if (policy.requiredForJoin !== true) {
+   500→      failSchema(
+   501→        'invalid_value',
+   502→        'contract.candidateSemanticReviewPolicy.requiredForJoin',
+   503→        '存在策略时必须启用语义终验 join',
+   504→      )
+   505→    }
+   506→    const taskIds = readArray(policy.taskIds, 'contract.candidateSemanticReviewPolicy.taskIds')
+   507→      .map((item, index) => readString(
+   508→        item,
+   509→        `contract.candidateSemanticReviewPolicy.taskIds[${index}]`,
+   510→        { max: 80 },
+   511→      ))
+   512→    if (taskIds.length === 0) {
+   513→      failSchema('invalid_value', 'contract.candidateSemanticReviewPolicy.taskIds', '不得为空')
+   514→    }
+   515→    assertUnique(taskIds, 'contract.candidateSemanticReviewPolicy.taskIds')
+   516→    candidateSemanticReviewPolicy = {
+   517→      requiredForJoin: true,
+   518→      verifierSetVersion: readString(
+   519→        policy.verifierSetVersion,
+   520→        'contract.candidateSemanticReviewPolicy.verifierSetVersion',
+   521→        { max: 160 },
+   522→      ),
+   523→      taskIds,
+   524→    }
+   525→    if (!dependencyReceiptPolicy) {
+   526→      failSchema(
+   527→        'invalid_value',
+   528→        'contract.candidateSemanticReviewPolicy',
+   529→        '语义终验 join 必须建立在候选确定性回执策略之上',
+   530→      )
+   531→    }
+   532→  }
+   533→
+   534→  let automationAuthorization: AgentRunContractV1['automationAuthorization']
+   535→  if (record.automationAuthorization !== undefined) {
+   536→    const authorization = readRecord(record.automationAuthorization, 'contract.automationAuthorization')
+   537→    assertExactKeys(
+   538→      authorization,
+   539→      ['version', 'mode', 'policy', 'taskKey', 'settingsHash', 'sourceTextHash', 'taskTypes', 'modelRoutes', 'maxCostUsd', 'allowUnknownCost', 'estimate'],
+   540→      ['version', 'mode', 'policy', 'taskKey', 'settingsHash', 'sourceTextHash', 'taskTypes', 'maxCostUsd', 'allowUnknownCost', 'estimate'],
+   541→      'contract.automationAuthorization',
+   542→    )
+   543→    if (authorization.version !== 1) {
+   544→      failSchema('unsupported_version', 'contract.automationAuthorization.version', '仅支持版本 1')
+   545→    }
+   546→    const taskTypes = readArray(authorization.taskTypes, 'contract.automationAuthorization.taskTypes')
+   547→      .map((item, index) => readEnum(
+   548→        item,
+   549→        ['organization', 'memory', 'retrieval', 'consistency'] as const,
+   550→        `contract.automationAuthorization.taskTypes[${index}]`,
+   551→      ))
+   552→    if (taskTypes.length === 0) {
+   553→      failSchema('invalid_value', 'contract.automationAuthorization.taskTypes', '不得为空')
+   554→    }
+   555→    assertUnique(taskTypes, 'contract.automationAuthorization.taskTypes')
+   556→    const modelRoutes = authorization.modelRoutes === undefined
+   557→      ? undefined
+   558→      : readArray(authorization.modelRoutes, 'contract.automationAuthorization.modelRoutes').map((item, index) => {
+   559→        const route = readRecord(item, `contract.automationAuthorization.modelRoutes[${index}]`)
+   560→        assertExactKeys(
+   561→          route,
+   562→          ['taskType', 'provider', 'model'],
+   563→          ['taskType', 'provider', 'model'],
+   564→          `contract.automationAuthorization.modelRoutes[${index}]`,
+   565→        )
+   566→        return {
+   567→          taskType: readEnum(route.taskType, ['organization', 'memory'], `contract.automationAuthorization.modelRoutes[${index}].taskType`),
+   568→          provider: readString(route.provider, `contract.automationAuthorization.modelRoutes[${index}].provider`),
+   569→          model: readString(route.model, `contract.automationAuthorization.modelRoutes[${index}].model`),
+   570→        }
+   571→      })
+   572→    if (modelRoutes) assertUnique(modelRoutes.map(route => route.taskType), 'contract.automationAuthorization.modelRoutes')
+   573→    const estimate = readRecord(authorization.estimate, 'contract.automationAuthorization.estimate')
+   574→    assertExactKeys(
+   575→      estimate,
+   576→      ['modelCalls', 'inputTokensMin', 'inputTokensMax', 'outputTokensMin', 'outputTokensMax', 'costUsdMin', 'costUsdMax'],
+   577→      ['modelCalls', 'inputTokensMin', 'inputTokensMax', 'outputTokensMin', 'outputTokensMax', 'costUsdMin', 'costUsdMax'],
+   578→      'contract.automationAuthorization.estimate',
+   579→    )
+   580→    const nullableCost = (value: unknown, path: string) => value === null
+   581→      ? null
+   582→      : readNonNegativeNumber(value, path)
+   583→    automationAuthorization = {
+   584→      version: 1,
+   585→      mode: readEnum(authorization.mode, ['author-confirmed', 'preauthorized'], 'contract.automationAuthorization.mode'),
+   586→      policy: readEnum(authorization.policy, ['suggest', 'auto-with-budget'], 'contract.automationAuthorization.policy'),
+   587→      taskKey: readHash(authorization.taskKey, 'contract.automationAuthorization.taskKey'),
+   588→      settingsHash: readHash(authorization.settingsHash, 'contract.automationAuthorization.settingsHash'),
+   589→      sourceTextHash: readHash(authorization.sourceTextHash, 'contract.automationAuthorization.sourceTextHash'),
+   590→      taskTypes,
+   591→      ...(modelRoutes ? { modelRoutes } : {}),
+   592→      maxCostUsd: readNonNegativeNumber(authorization.maxCostUsd, 'contract.automationAuthorization.maxCostUsd'),
+   593→      allowUnknownCost: readBoolean(authorization.allowUnknownCost, 'contract.automationAuthorization.allowUnknownCost'),
+   594→      estimate: {
+   595→        modelCalls: readInteger(estimate.modelCalls, 'contract.automationAuthorization.estimate.modelCalls', { min: 0 }),
+   596→        inputTokensMin: readInteger(estimate.inputTokensMin, 'contract.automationAuthorization.estimate.inputTokensMin', { min: 0 }),
+   597→        inputTokensMax: readInteger(estimate.inputTokensMax, 'contract.automationAuthorization.estimate.inputTokensMax', { min: 0 }),
+   598→        outputTokensMin: readInteger(estimate.outputTokensMin, 'contract.automationAuthorization.estimate.outputTokensMin', { min: 0 }),
+   599→        outputTokensMax: readInteger(estimate.outputTokensMax, 'contract.automationAuthorization.estimate.outputTokensMax', { min: 0 }),
+   600→        costUsdMin: nullableCost(estimate.costUsdMin, 'contract.automationAuthorization.estimate.costUsdMin'),
+   601→        costUsdMax: nullableCost(estimate.costUsdMax, 'contract.automationAuthorization.estimate.costUsdMax'),
+   602→      },
+   603→    }
+   604→  }
+   605→
+   606→  const budgetRecord = readRecord(record.budget, 'contract.budget')
+   607→  const requiredBudgetKeys = ['maxModelCalls', 'maxToolCalls', 'maxInputTokens', 'maxOutputTokens', 'maxAttemptsPerStep'] as const
+   608→  const budgetKeys = [...requiredBudgetKeys, 'maxReplans', 'maxToolResultTokens', 'maxProtocolErrors'] as const
+   609→  assertExactKeys(budgetRecord, budgetKeys, requiredBudgetKeys, 'contract.budget')
+   610→
+   611→  const acceptance = readArray(record.acceptance, 'contract.acceptance')
+   612→    .map((item, index) => readAcceptance(item, `contract.acceptance[${index}]`))
+   613→  if (acceptance.length === 0) failSchema('invalid_acceptance', 'contract.acceptance', '不得为空')
+   614→  assertUnique(acceptance.map(item => item.id), 'contract.acceptance')
+   615→
+   616→  const verificationPlan = readArray(record.verificationPlan, 'contract.verificationPlan')
+   617→    .map((item, index) => readVerificationStep(item, `contract.verificationPlan[${index}]`))
+   618→  if (verificationPlan.length === 0) failSchema('invalid_verification', 'contract.verificationPlan', '不得为空')
+   619→  assertUnique(verificationPlan.map(item => item.id), 'contract.verificationPlan')
+   620→  if (!verificationPlan.some(item => item.kind === 'terminal')) {
+   621→    failSchema('missing_terminal_verifier', 'contract.verificationPlan', '必须包含 terminal verifier')
+   622→  }
+   623→  const criterionIds = new Set(acceptance.map(item => item.id))
+   624→  const coveredCriterionIds = new Set<string>()
+   625→  for (const step of verificationPlan) {
+   626→    for (const criterionId of step.criterionIds) {
+   627→      if (!criterionIds.has(criterionId)) {
+   628→        failSchema('unknown_criterion', 'contract.verificationPlan', `引用了未知验收项 ${criterionId}`)
+   629→      }
+   630→      coveredCriterionIds.add(criterionId)
+   631→    }
+   632→  }
+   633→  for (const criterion of acceptance) {
+   634→    if (criterion.required && !coveredCriterionIds.has(criterion.id)) {
+   635→      failSchema('unverified_criterion', 'contract.verificationPlan', `必需验收项 ${criterion.id} 未被验证`)
+   636→    }
+   637→  }
+   638→
+   639→  const failureRecord = readRecord(record.failurePolicy, 'contract.failurePolicy')
+   640→  assertExactKeys(
+   641→    failureRecord,
+   642→    ['onProtocolError', 'onVerificationFailure', 'onStaleInput'],
+   643→    ['onProtocolError', 'onVerificationFailure', 'onStaleInput'],
+   644→    'contract.failurePolicy',
+   645→  )
+   646→
+   647→  const workflowKind = readEnum(record.workflowKind, WORKFLOW_KINDS, 'contract.workflowKind')
+   648→  if (workflowKind === 'read-only-audit' && writeTargets.length > 0) {
+   649→    failSchema('invalid_permission', 'contract.permissions.writeTargets', '只读任务的写集合必须为空')
+   650→  }
+   651→
+   652→  return {
+   653→    version: 1,
+   654→    objective: readString(record.objective, 'contract.objective', { max: 4000 }),
+   655→    workflowKind,
+   656→    ...(ownership ? { ownership } : {}),
+   657→    ...(lineage ? { lineage } : {}),
+   658→    scope: {
+   659→      projectId: readInteger(scopeRecord.projectId, 'contract.scope.projectId', { min: 1 }),
+   660→      worldGroupId,
+   661→      chapterIds: readIdArray(scopeRecord.chapterIds, 'contract.scope.chapterIds'),
+   662→      outlineNodeIds: readIdArray(scopeRecord.outlineNodeIds, 'contract.scope.outlineNodeIds'),
+   663→      ...(runtime ? { runtime } : {}),
+   664→      ...(productProduction ? { productProduction } : {}),
+   665→    },
+   666→    permissions: { contextSourceKeys, writeTargets },
+   667→    ...(record.runtimeBindingHash === undefined ? {} : {
+   668→      runtimeBindingHash: readHash(record.runtimeBindingHash, 'contract.runtimeBindingHash'),
+   669→    }),
+   670→    ...(executionBindings ? { executionBindings } : {}),
+   671→    ...(dependencyReceiptPolicy ? { dependencyReceiptPolicy } : {}),
+   672→    ...(candidateSemanticReviewPolicy ? { candidateSemanticReviewPolicy } : {}),
+   673→    ...(automationAuthorization ? { automationAuthorization } : {}),
+   674→    budget: {
+   675→      maxModelCalls: readInteger(budgetRecord.maxModelCalls, 'contract.budget.maxModelCalls', { min: 1 }),
+   676→      maxToolCalls: readInteger(budgetRecord.maxToolCalls, 'contract.budget.maxToolCalls', { min: 0 }),
+   677→      maxInputTokens: readInteger(budgetRecord.maxInputTokens, 'contract.budget.maxInputTokens', { min: 1 }),
+   678→      maxOutputTokens: readInteger(budgetRecord.maxOutputTokens, 'contract.budget.maxOutputTokens', { min: 1 }),
+   679→      maxAttemptsPerStep: readInteger(budgetRecord.maxAttemptsPerStep, 'contract.budget.maxAttemptsPerStep', { min: 1 }),
+   680→      ...(budgetRecord.maxReplans === undefined ? {} : {
+   681→        maxReplans: readInteger(budgetRecord.maxReplans, 'contract.budget.maxReplans', { min: 0 }),
+   682→      }),
+   683→      ...(budgetRecord.maxToolResultTokens === undefined ? {} : {
+   684→        maxToolResultTokens: readInteger(
+   685→          budgetRecord.maxToolResultTokens,
+   686→          'contract.budget.maxToolResultTokens',
+   687→          { min: 1 },
+   688→        ),
+   689→      }),
+   690→      ...(budgetRecord.maxProtocolErrors === undefined ? {} : {
+   691→        maxProtocolErrors: readInteger(
+   692→          budgetRecord.maxProtocolErrors,
+   693→          'contract.budget.maxProtocolErrors',
+   694→          { min: 0 },
+   695→        ),
+   696→      }),
+   697→    },
+   698→    acceptance,
+   699→    verificationPlan,
+   700→    failurePolicy: {
+   701→      onProtocolError: readEnum(failureRecord.onProtocolError, ['retry', 'fail'], 'contract.failurePolicy.onProtocolError'),
+   702→      onVerificationFailure: readEnum(
+   703→        failureRecord.onVerificationFailure,
+   704→        ['revise', 'replan', 'fail'],
+   705→        'contract.failurePolicy.onVerificationFailure',
+   706→      ),
+   707→      onStaleInput: readEnum(
+   708→        failureRecord.onStaleInput,
+   709→        ['restart-step', 'pause-for-author'],
+   710→        'contract.failurePolicy.onStaleInput',
+   711→      ),
+   712→    },
+   713→  }
+   714→}
+   715→
+   716→export function parseAgentRunContractV1(value: unknown): AgentRunContractV1 {
+   717→  return parseAgentRunContractV1Base(value, false)
+   718→}
+   719→
+   720→export async function acceptAgentRunContractV1(value: unknown): Promise<AcceptedAgentRunContractV1> {
+   721→  const contract = parseAgentRunContractV1(value)
+   722→  return { contract, contractHash: await hashCanonicalValue(contract) }
+   723→}
+   724→
+   725→function writePermissionSignatures(targets: readonly AgentRunWriteTargetV1[]): string[] {
+   726→  const signatures: string[] = []
+   727→  for (const target of targets) {
+   728→    if (target.fields.length === 0) {
+   729→      signatures.push(`${target.table}:${target.adoptionExtension ?? ''}:${target.mode}:#extension`)
+   730→      continue
+   731→    }
+   732→    for (const field of target.fields) {
+   733→      signatures.push(`${target.table}:${target.adoptionExtension ?? ''}:${target.mode}:${field}`)
+   734→    }
+   735→  }
+   736→  return [...new Set(signatures)].sort()
+   737→}
+   738→
+   739→function parseSkillBoundContract(
+   740→  value: unknown,
+   741→  expectedVersion: 2 | 3,
+   742→): {
+   743→  base: AgentRunContractV1
+   744→  executionBindings: AgentRunStepExecutionBindingV2[]
+   745→  record: Record<string, unknown>
+   746→} {
+   747→  const record = readRecord(value, 'contract')
+   748→  const allowedKeys = [
+   749→    'version',
+   750→    'objective',
+   751→    'workflowKind',
+   752→    'lineage',
+   753→    'scope',
+   754→    'permissions',
+   755→    'runtimeBindingHash',
+   756→    'executionBindings',
+   757→    'dependencyReceiptPolicy',
+   758→    'candidateSemanticReviewPolicy',
+   759→    'automationAuthorization',
+   760→    'budget',
+   761→    'acceptance',
+   762→    'verificationPlan',
+   763→    'failurePolicy',
+   764→    ...(expectedVersion === 3 ? ['executionBoundary'] as const : []),
+   765→  ] as const
+   766→  assertExactKeys(record, allowedKeys, [
+   767→    'version',
+   768→    'objective',
+   769→    'workflowKind',
+   770→    'scope',
+   771→    'permissions',
+   772→    'executionBindings',
+   773→    'budget',
+   774→    'acceptance',
+   775→    'verificationPlan',
+   776→    'failurePolicy',
+   777→    ...(expectedVersion === 3 ? ['executionBoundary'] as const : []),
+   778→  ], 'contract')
+   779→  if (record.version !== expectedVersion) {
+   780→    failSchema('unsupported_version', 'contract.version', `仅支持版本 ${expectedVersion}`)
+   781→  }
+   782→  const executionBindings = readArray(record.executionBindings, 'contract.executionBindings')
+   783→    .map((item, index) => readExecutionBindingV2(item, `contract.executionBindings[${index}]`))
+   784→  if (executionBindings.length === 0) {
+   785→    failSchema('invalid_execution_binding', 'contract.executionBindings', 'V2 正式契约必须包含 Skill 派生绑定')
+   786→  }
+   787→  assertUnique(executionBindings.map(item => item.stepId), 'contract.executionBindings')
+   788→
+   789→  const baseShape = { ...record, version: 1 } as Record<string, unknown>
+   790→  delete baseShape.executionBindings
+   791→  if (expectedVersion === 3) delete baseShape.executionBoundary
+   792→  const base = parseAgentRunContractV1Base(baseShape, true)
+   793→  const permissionSources = [...new Set(base.permissions.contextSourceKeys)].sort()
+   794→  const bindingSources = [...new Set(executionBindings.flatMap(binding => binding.contextSourceKeys))].sort()
+   795→  if (JSON.stringify(permissionSources) !== JSON.stringify(bindingSources)) {
+   796→    failSchema(
+   797→      'invalid_execution_binding',
+   798→      'contract.permissions.contextSourceKeys',
+   799→      'V2 Run permissions 必须等于所有 Skill binding 的实际来源并集',
+   800→    )
+   801→  }
+   802→  const permissionWrites = writePermissionSignatures(base.permissions.writeTargets)
+   803→  const bindingWrites = writePermissionSignatures(executionBindings.flatMap(binding => binding.writeTargets))
+   804→  if (JSON.stringify(permissionWrites) !== JSON.stringify(bindingWrites)) {
+   805→    failSchema(
+   806→      'invalid_execution_binding',
+   807→      'contract.permissions.writeTargets',
+   808→      'V2 Run permissions 必须等于所有 Skill binding 的实际写目标并集',
+   809→    )
+   810→  }
+   811→  if (executionBindings.some(binding => binding.maxOutputTokens > base.budget.maxOutputTokens)) {
+   812→    failSchema(
+   813→      'invalid_execution_binding',
+   814→      'contract.budget.maxOutputTokens',
+   815→      'Run 输出预算不得小于任一步骤的 Skill 输出预算',
+   816→    )
+   817→  }
+   818→  return { base, executionBindings, record }
+   819→}
+   820→
+   821→export function parseAgentRunContractV2(value: unknown): AgentRunContractV2 {
+   822→  const { base, executionBindings } = parseSkillBoundContract(value, 2)
+   823→  return { ...base, version: 2, executionBindings }
+   824→}
+   825→
+   826→export function parseAgentRunContractV3(value: unknown): AgentRunContractV3 {
+   827→  const { base, executionBindings, record } = parseSkillBoundContract(value, 3)
+   828→  return {
+   829→    ...base,
+   830→    version: 3,
+   831→    executionBoundary: readEnum(
+   832→      record.executionBoundary,
+   833→      EXECUTION_BOUNDARIES,
+   834→      'contract.executionBoundary',
+   835→    ),
+   836→    executionBindings,
+   837→  }
+   838→}
+   839→
+   840→export function parseAgentRunContract(value: unknown): AgentRunContract {
+   841→  const record = readRecord(value, 'contract')
+   842→  if (record.version === 1) return parseAgentRunContractV1(value)
+   843→  if (record.version === 2) return parseAgentRunContractV2(value)
+   844→  if (record.version === 3) return parseAgentRunContractV3(value)
+   845→  failSchema('unsupported_version', 'contract.version', '仅支持版本 1、2 或 3')
+   846→}
+   847→
+   848→export async function acceptAgentRunContractV2(value: unknown): Promise<AcceptedAgentRunContractV2> {
+   849→  const contract = parseAgentRunContractV2(value)
+   850→  for (const binding of contract.executionBindings) {
+   851→    const { stepId: _stepId, ...skillBinding } = binding
+   852→    await assertAgentSkillExecutionBindingIntegrityV2(skillBinding, `Run step ${binding.stepId}`)
+   853→  }
+   854→  return { contract, contractHash: await hashCanonicalValue(contract) }
+   855→}
+   856→
+   857→export async function acceptAgentRunContractV3(value: unknown): Promise<AcceptedAgentRunContractV3> {
+   858→  const contract = parseAgentRunContractV3(value)
+   859→  for (const binding of contract.executionBindings) {
+   860→    const { stepId: _stepId, ...skillBinding } = binding
+   861→    await assertAgentSkillExecutionBindingIntegrityV2(skillBinding, `Run step ${binding.stepId}`)
+   862→  }
+   863→  return { contract, contractHash: await hashCanonicalValue(contract) }
+   864→}
+   865→
+   866→export async function acceptAgentRunContract(value: unknown): Promise<AcceptedAgentRunContract> {
+   867→  const record = readRecord(value, 'contract')
+   868→  if (record.version === 1) return acceptAgentRunContractV1(value)
+   869→  if (record.version === 2) return acceptAgentRunContractV2(value)
+   870→  if (record.version === 3) return acceptAgentRunContractV3(value)
+   871→  failSchema('unsupported_version', 'contract.version', '仅支持版本 1、2 或 3')
+   872→}
+   873→
