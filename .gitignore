@@ -56,10 +56,8 @@ server.log
 storyforge/
 aizhuiguang-main/
 aizhuiguang-scrape/
-story-ledger/
 
 # Build artifacts
-build_corpus.py
 *.log
 storyforge-*.log
 storyforge-*.pid
@@ -75,3 +73,4 @@ public/corpus-summary.json
 # Tool results from old sessions
 tool-results/
 agent-ctx/
+story-ledger/

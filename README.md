@@ -1,0 +1,144 @@
+# Story Engine · 故事引擎
+
+A vision mockup for a **pattern-distillation + reverse-generation story engine**, built on Next.js 16 + TypeScript + Tailwind CSS 4 + shadcn/ui (New York) + Framer Motion + Zustand.
+
+This is a design prototype — all data is mock (no real LLM calls). The goal is to communicate the architecture and UX of a story engine that can:
+1. **Distill patterns** from any corpus (novels, screenplays, webnovels, micro-dramas)
+2. **Aggregate** N distilled patterns into meta-patterns with statistical weight
+3. **Reverse-generate** stories from chosen patterns + parameter bindings
+4. **Materialize** the same pattern across multiple products (novel / screenplay / comic / motion-drama / TTRPG / AVG)
+5. **Apply at mass scale** to real corpora — stress-test the framework
+
+## Six interactive sections + 1 lab
+
+| # | Section | What it shows |
+|---|---|---|
+| 1 | Hero | Title + tagline + Take the Tour CTA |
+| 2 | Distillation | Pick 1 of 5 bilingual sample novels → 5-stage simulated pipeline → distilled StoryPatternV1 |
+| 3 | Aggregation | 5 pattern nodes → animated SVG clustering → meta-pattern with confidence score |
+| 4 | Pattern Library | 15 patterns (9 built-in canon + 5 distilled + 1 aggregated), filterable by family + provenance + search |
+| 5 | Reverse-Generation | Pick a pattern, fill 6 parameter slots, get a tagged outline tree |
+| 6 | Multi-Product | Same sealed pattern → 6 product outputs (novel / screenplay / comic / motion-drama / TTRPG / AVG) |
+| 7 | **Corpus Lab** | 259 real stories from `aizhuiguang-scrape`, exploded to 1136 variants. Filter / browse / see where the framework fits and where it forces. **Stories are NOT atomic — 1 story → N variants.** |
+
+Plus a 7-step embedded tour overlay with spotlight + keyboard shortcuts.
+
+## Pattern Library (9 built-in canons)
+
+Both Western and East Asian narrative theory:
+- Save the Cat 15-beat (Blake Snyder)
+- Hero's Journey 12 stages condensed (Joseph Campbell)
+- Harmon Story Circle 8 steps (Dan Harmon)
+- Dramatica 4-throughline storyform
+- Truby 22 building blocks condensed to 8
+- 起承转合 / Kishōtenketsu (East Asian 4-block)
+- 序破急 / Jo-ha-kyū (Japanese 3-block)
+- 网文·系统流 (Chinese webnovel — bootstrap)
+- 网文·重生流 (Chinese webnovel — bootstrap)
+
+## Framework v2 refinements (applied)
+
+Based on stress-testing 259 stories + 1136 variants from `wesisad5/aizhuiguang-scrape`:
+
+- `branchingType` enum expanded: `'rigid-tree' | 'multi-lane' | 'linear'`
+- `BranchingInfo` with per-branch metadata (`choicePointCount`, `endingCount`, `totalPaths`, `laneCount`, `laneLabels`, `phaseCount`, `runtimeSec`)
+- `antagonistType` enum: `'character' | 'environmental' | 'situational' | 'societal' | 'internal' | 'none'` (replaces free-text antagonist slot — 22% of stories have no traditional antagonist character)
+- `climaxMode` enum: `'single' | 'per-path' | 'per-lane' | 'absent'` (manju rigid-tree dramas have path-dependent climaxes, collapsed into `resolution` previously)
+- `patternFingerprint` hash for clustering templated stories (e.g., 119 of 121 manju share one fingerprint)
+- `subCluster` field beneath `familyKey` (e.g., `life-philosophy.money` for the 8+ money-themed philo scenes)
+- `selfMentored` flag on protagonist archetype (rebirth/revenge pattern is structurally self-mentored)
+
+## Corpus Lab stress-test results
+
+Run on 259 stories from `wesisad5/aizhuiguang-scrape` (main branch):
+
+| Metric | Value |
+|---|---|
+| Total stories | 259 |
+| Total variants (after explosion) | 1136 |
+| Story types | 121 manju + 20 branch-drama + 118 viral-scene |
+| Branching types | 121 rigid-tree + 20 multi-lane + 118 linear |
+| Families | 16 distinct |
+| Antagonist types | 135 character + 118 situational + 5 environmental + 1 none |
+| Climax modes | 121 per-path + 20 per-lane + 95 single + 23 absent |
+| Invariant pass rate | 223/259 (86%) — 36 failures all from no-antagonist genres |
+
+Top framework gaps surfaced:
+1. Branching depth invisible at synopsis level (manju: 144 paths → 3 stages = 48:1 loss)
+2. Climax slot structurally impossible for branching dramas (path-dependent)
+3. Stakes parameter slot non-deterministic for multi-ending stories (filled with literal "3 种结局..." text)
+4. Mentor archetype absent in 93% of stories (only 18/259 = 7% have one)
+5. Branching type enum missing `multi-lane` and `linear` values
+6. Antagonist slot conflates character / environmental / situational / none
+7. Cinematic production data (lens/perform/shot/voice/tone/pace) has no framework slot
+8. Plot-line alternatives (`plotLines`, `titleBank`) have no framework slot
+9. Templated-stage provenance not tracked (53/59 philo scenes have `pro: null`, synthesized from act template)
+10. Sub-cluster taxonomy missing beneath familyKey (philo splits into money/parental/romance/workplace/interpersonal)
+
+## Getting started
+
+```bash
+bun install
+bun run dev
+```
+
+Open the preview (the dev server runs on port 3000). The Corpus Lab section loads `/corpus-summary.json` which is generated by:
+
+```bash
+python3 scripts/build_corpus.py
+```
+
+(This script requires cloning `wesisad5/aizhuiguang-scrape` to `./aizhuiguang-main/` first — see the script's `AIZHUIGUANG_DIR` constant.)
+
+## Tech stack
+
+- **Framework**: Next.js 16 with App Router (Turbopack)
+- **Language**: TypeScript 5
+- **Styling**: Tailwind CSS 4 with shadcn/ui (New York style)
+- **State**: Zustand (client), TanStack Query (server)
+- **Animation**: Framer Motion
+- **Fonts**: Playfair Display (serif headlines) + Inter (sans body) + Noto Serif SC + Noto Sans SC (Chinese)
+- **Visual style**: Editorial dark — deep charcoal `#0E0E10` + warm ivory `#F5F0E1` + brass/gold accent `#C19A6B`
+- **Bilingual**: Every label in both English and Chinese
+
+## Project structure
+
+```
+src/
+├── app/
+│   ├── page.tsx           # Single-page composition (only route)
+│   ├── layout.tsx         # Font loading + body wrapper
+│   └── globals.css        # Editorial dark theme tokens
+├── components/
+│   └── story-engine/
+│       ├── StickyNav.tsx
+│       ├── Hero.tsx
+│       ├── DistillationSection.tsx     # exports reusable SectionHeader
+│       ├── AggregationSection.tsx
+│       ├── PatternLibrarySection.tsx
+│       ├── ReverseGenerationSection.tsx
+│       ├── MultiProductSection.tsx
+│       ├── CorpusLabSection.tsx        # NEW — section 7
+│       ├── DistilledPatternCard.tsx    # reusable for any pattern
+│       ├── Footer.tsx
+│       └── TourOverlay.tsx
+├── lib/
+│   ├── story-engine-data.ts            # ~4300 lines — types + mock data
+│   ├── mock-outline-generator.ts       # generates bilingual outlines per pattern
+│   ├── corpus-types.ts                 # NEW — refined StoryPattern v2 types
+│   └── utils.ts
+├── stores/
+│   └── story-engine-store.ts           # Zustand store with 7 tour steps
+└── public/
+    └── corpus-summary.json             # generated by build_corpus.py (not committed)
+```
+
+## License
+
+MIT — same as the source corpora and the StoryForge project that inspired the architectural analysis.
+
+## Acknowledgments
+
+- [StoryForge](https://github.com/yuanbw2025/storyforge) — the local-first AI narrative workbench whose durable Harness + three registries + Context Gateway architecture inspired this mockup
+- [aizhuiguang-scrape](https://github.com/wesisad5/aizhuiguang-scrape) — the corpus of 259 AI-generated mini-dramas used for the Corpus Lab stress test
+- Blake Snyder's *Save the Cat!*, Joseph Campbell's *Hero with a Thousand Faces*, Dan Harmon's Story Circle, Melanie Anne Phillips's *Dramatica*, John Truby's *Anatomy of Story*, and the 起承转合 / 序破急 traditions
