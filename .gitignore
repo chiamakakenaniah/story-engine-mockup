@@ -52,3 +52,26 @@ prompt
 server.log
 # Skills directory
 /skills/
+# Large clones we don't want to push
+storyforge/
+aizhuiguang-main/
+aizhuiguang-scrape/
+story-ledger/
+
+# Build artifacts
+build_corpus.py
+*.log
+storyforge-*.log
+storyforge-*.pid
+nextjs-dev.pid
+clone.log
+
+# Generated corpus data (regeneratable via build_corpus.py)
+public/corpus-summary.json
+
+# Screenshots
+*.png
+
+# Tool results from old sessions
+tool-results/
+agent-ctx/

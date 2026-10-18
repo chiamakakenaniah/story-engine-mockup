@@ -7,6 +7,7 @@ import { AggregationSection } from '@/components/story-engine/AggregationSection
 import { PatternLibrarySection } from '@/components/story-engine/PatternLibrarySection'
 import { ReverseGenerationSection } from '@/components/story-engine/ReverseGenerationSection'
 import { MultiProductSection } from '@/components/story-engine/MultiProductSection'
+import { CorpusLabSection } from '@/components/story-engine/CorpusLabSection'
 import { Footer } from '@/components/story-engine/Footer'
 import { TourOverlay } from '@/components/story-engine/TourOverlay'
 
@@ -20,7 +21,9 @@ import { TourOverlay } from '@/components/story-engine/TourOverlay'
  *   4. PatternLibrarySection   — built-in + distilled + aggregated pattern grid
  *   5. ReverseGenerationSection — pattern selector + parameter form + outline tree
  *   6. MultiProductSection     — same pattern → 6 different product outputs
- *   +  TourOverlay             — 6-step spotlight tour
+ *   7. CorpusLabSection        — 259 stories + 1136 variants, mass-scale pattern
+ *                                application, framework stress-test
+ *   +  TourOverlay             — spotlight tour (7 steps)
  *
  * The root wrapper uses `min-h-screen flex flex-col` so the Footer sticks
  * to the bottom of the viewport when content is shorter than one screen.
@@ -37,6 +40,7 @@ export default function Home() {
         <PatternLibrarySection />
         <ReverseGenerationSection />
         <MultiProductSection />
+        <CorpusLabSection />
       </main>
 
       <Footer />

@@ -153,6 +153,14 @@ export const TOUR_STEPS: TourStep[] = [
       'Same pattern + bindings drives 6 different product outputs.',
     bodyZh: '同一模式加绑定驱动 6 种不同产品输出。',
   },
+  {
+    targetId: 'corpus-lab',
+    titleEn: 'Corpus Lab',
+    titleZh: '语料实验室',
+    bodyEn:
+      '259 real stories from aizhuiguang-scrape, exploded to 1136 variants. Filter, browse, see where the framework fits and where it forces. Stories are NOT atomic — 1 story → N variants.',
+    bodyZh: '来自 aizhuiguang-scrape 的 259 个真实故事，展开为 1136 个变体。筛选、浏览、看框架在哪里贴合哪里勉强。故事不是原子单元——1 个故事 → N 个变体。',
+  },
 ]
 
 /* -------------------------------------------------------------------------- */

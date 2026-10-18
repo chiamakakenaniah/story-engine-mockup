@@ -18,6 +18,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '#library', labelEn: 'Library', labelZh: '模式库' },
   { href: '#reverse-gen', labelEn: 'Reverse-Gen', labelZh: '反向生成' },
   { href: '#multi-product', labelEn: 'Multi-Product', labelZh: '多产品' },
+  { href: '#corpus-lab', labelEn: 'Corpus Lab', labelZh: '语料实验室' },
 ]
 
 export function StickyNav() {
