@@ -1,5 +1,6 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { StickyNav } from '@/components/story-engine/StickyNav'
 import { Hero } from '@/components/story-engine/Hero'
 import { DistillationSection } from '@/components/story-engine/DistillationSection'
@@ -7,9 +8,23 @@ import { AggregationSection } from '@/components/story-engine/AggregationSection
 import { PatternLibrarySection } from '@/components/story-engine/PatternLibrarySection'
 import { ReverseGenerationSection } from '@/components/story-engine/ReverseGenerationSection'
 import { MultiProductSection } from '@/components/story-engine/MultiProductSection'
-import { CorpusLabSection } from '@/components/story-engine/CorpusLabSection'
 import { Footer } from '@/components/story-engine/Footer'
 import { TourOverlay } from '@/components/story-engine/TourOverlay'
+
+// Defer the 1.5MB Corpus Lab chunk out of the initial homepage bundle.
+// Sections 1-6 render instantly; section 7 streams in as user scrolls.
+const CorpusLabSection = dynamic(() => import('@/components/story-engine/CorpusLabSection').then(m => m.CorpusLabSection), {
+  ssr: false,
+  loading: () => (
+    <section id="corpus-lab" className="py-24 scroll-mt-16 border-t" style={{ borderColor: 'color-mix(in oklab, var(--fg-faint) 25%, transparent)' }}>
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+        <p className="font-mono-editorial text-sm" style={{ color: 'var(--fg-muted, #A39E8E)' }}>
+          Loading Corpus Lab… · 加载语料实验室中…
+        </p>
+      </div>
+    </section>
+  ),
+})
 
 /**
  * STORY ENGINE · 故事引擎 — Single Page Composition

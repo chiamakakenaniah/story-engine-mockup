@@ -65,7 +65,7 @@ nextjs-dev.pid
 clone.log
 
 # Generated corpus data (regeneratable via build_corpus.py)
-public/corpus-summary.json
+# public/corpus-summary.json — no longer used (TS data files committed instead)
 
 # Screenshots
 *.png

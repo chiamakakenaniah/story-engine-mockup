@@ -88,7 +88,13 @@ export interface StoryRecord {
   characterCount?: number
   stageRoles: StageRole[]
   archetypeKeys: string[]
-  stages: { slotId: string; role: StageRole; label_zh: string; triggerConstraint_zh?: string }[]
+  stages: {
+    slotId: string
+    role: StageRole
+    label_zh: string
+    triggerConstraint_zh?: string
+    synthesizedFromTemplate?: boolean  // A12: was this stage synthesized from act template?
+  }[]
   archetypes: { archetypeKey: string; label_zh: string; functionSummary_zh?: string }[]
   parameterSlotsFilled: ParameterSlotsFilledV2
   antagonistType: AntagonistType
@@ -105,6 +111,8 @@ export interface StoryRecord {
   allGaps: string[]
   patternFingerprint: string
   variantCount: number
+  proWasNull?: boolean  // A12: viral-scene stories where pro field was null (stages synthesized from act)
+  synthesizedStageCount?: number  // A12: count of stages synthesized from act template
 }
 
 export type VariantType = 'ending' | 'lane' | 'linear'
@@ -117,6 +125,8 @@ export interface VariantInstance {
   variantLabel_zh: string
   variantLabel_en?: string
   laneKey?: string
+  variantResolution_zh?: string  // A4: ending-specific resolution text (manju)
+  variantLaneScenes?: { slotId: string; label_zh: string }[]  // A4: lane-specific scene labels (branch-drama)
 }
 
 export interface CorpusStats {
