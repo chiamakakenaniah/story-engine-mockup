@@ -1,143 +1,158 @@
-# Design Decision: Corpus Lab — fully static, no Python runtime
+# Design Decision: Corpus Lab — fully static, no Python runtime (v2, post-critique)
 
 ## Problem
 
 The current Corpus Lab section fetches `/corpus-summary.json` at runtime. This file is gitignored as "regeneratable via `python3 scripts/build_corpus.py`", which means:
 
 1. **Sandbox resets wipe the file** — every time the sandbox restarts, `public/corpus-summary.json` is gone.
-2. **The user sees "Loading corpus…" forever** — fetch returns 404, no fallback.
+2. **The user sees "Loading corpus…" forever** — fetch returns 404, no fallback. (Confirmed: `public/` currently has only `logo.svg` + `robots.txt`; the section is **broken right now**.)
 3. **Python script depends on the aizhuiguang-scrape clone** — which also gets wiped on reset.
-4. **Re-cloning + re-running the script is fragile** — multiple failure points (token expired, network, sparse-checkout config, script path drift).
+4. **Re-cloning + re-running the script is fragile** — multiple failure points.
 
 The user explicitly said: "completely redo the corpus lab to just host static content no backend py calling that will not work in this environment."
 
 ## Goal
 
-Make the Corpus Lab **fully self-contained static content** that ships with the code, survives sandbox resets, requires no Python at runtime, and is type-safe.
+Make the Corpus Lab **fully self-contained static content** that ships with the code, survives sandbox resets, requires no Python at runtime, and is type-safe. Plus address all audit gaps surfaced in the prior round.
 
 ## Constraints
 
-- The data is 1.2 MB (259 stories + 1136 variants + stats). Must not bloat the JS bundle to the point of breaking Turbopack dev compile times.
+- The data is 1.2 MB (259 stories + 1136 variants + stats). Must ship with the code.
 - Must survive sandbox resets (committed to git).
 - Must be type-safe (typed against `corpus-types.ts`).
 - The build_corpus.py script can still exist for REGENERATION when the upstream corpus changes — but it must NOT be required at runtime.
 - Must preserve all current UX: stats dashboard, filters, expandable rows, detail sheet, 1136 variants.
-- Should also fix audit gaps from the prior round:
-  - **A2**: `subCluster` field exists in types but extractor never populates it (notably `life-philosophy` family has 5+ sub-clusters: money / parental / romance / workplace / interpersonal).
-  - **A3**: Pattern→stories reverse mapping is invisible. Currently the stats dashboard shows "Top Fingerprints" as counts but you can't click to see which stories share a fingerprint.
-  - **A4**: Variant chips are not interactive — clicking a variant doesn't open anything.
+- Plus fix all audit gaps listed below.
 
-## Options considered
+## Options considered (post-critique)
 
-### Option A: Commit the existing `public/corpus-summary.json` (un-gitignore it)
+### Option A: Commit `public/corpus-summary.json` (un-gitignore it)
 
-**Pros**: minimal change — just `git rm --cached`, un-gitignore, commit. Existing fetch-based component keeps working.
+**Pros**: minimal change.
+**Cons**: no type safety; git-diff unreadable; doesn't address user's "redo" framing.
 
-**Cons**:
-- Still requires runtime fetch + async loading state. The user's word "redo" suggests they want a more substantial change.
-- No type safety — the JSON is untyped; if the schema drifts from `corpus-types.ts`, TypeScript won't catch it.
-- 1.2 MB JSON file is awkward to diff in PRs.
-- In Next.js 16 with Turbopack, fetching large public/ files in dev mode can be slow.
+### Option B: Inline as a single 1.5 MB TS module
 
-### Option B: Inline the data as a single TS module
+**Pros**: type-safe; no fetch; survives resets.
+**Cons**: large single file; harder to review in PRs.
 
-`src/lib/corpus-data.ts` exports `CORPUS_DATA: CorpusData = {...}`.
+### ~~Option C (original): per-type TS files for compile speed~~ — REVISED
 
-**Pros**:
-- Fully static, no fetch, no async.
-- Type-safe — TypeScript checks the shape against `corpus-types.ts`.
-- Survives sandbox resets (committed).
+Original rationale claimed "1.5 MB TS file → slow Turbopack compile + slow HMR on every save". **Peer review confirmed this is false** for Next.js 16 + Turbopack — SWC transpiles a 1.5 MB data-only module in ~100-400ms one-time, and HMR on a data file with no internal logic is sub-second. Existing precedent: `src/lib/story-engine-data.ts` is already 197 KB with no documented compile complaints.
 
-**Cons**:
-- 1.5 MB+ TS file (1.2 MB JSON + type annotations) → slow Turbopack compile + slow HMR on every save.
-- Awkward to review in PRs (huge diff).
-- Single file = no lazy loading.
+### Option C (revised, RECOMMENDED): per-type TS files for architecture + future lazy-loading
 
-### Option C: Inline the data split per story type (RECOMMENDED)
+Keep per-type file split, but for the RIGHT reasons:
+- **Architectural separation** per story-type → clean boundaries
+- **Future per-type lazy-loading** optionality via `next/dynamic`
+- **Smaller per-file git diffs** in PRs (manju regen doesn't touch viral-scene file)
+- **Per-file reviewable** in chunks
 
-Three data files + one aggregator:
-- `src/lib/corpus-data/manju.ts` — 121 stories + ~968 variants (~400 KB)
-- `src/lib/corpus-data/branch-drama.ts` — 20 stories + 60 variants (~60 KB)
-- `src/lib/corpus-data/viral-scene.ts` — 118 stories + 118 variants (~250 KB)
-- `src/lib/corpus-data/index.ts` — combines all three + computes stats
+PLUS add the ACTUAL bundle win that the original doc was reaching for:
+- **Wrap `CorpusLabSection` in `next/dynamic({ ssr: false })`** in `page.tsx` → defers 1.5 MB + 33 KB component chunk out of initial homepage bundle. Sections 1-6 render instantly, section 7 streams in on scroll.
 
-**Pros**:
-- Each file ≤ 400 KB → fast Turbopack compile, fast HMR.
-- Type-safe.
-- No async, no fetch.
-- Survives sandbox resets.
-- Per-type lazy loading is possible later if needed.
-- Clean architecture: data layer separated from component.
+### Option D: combination — small inline stats + per-type lazy JSON
 
-**Cons**:
-- Bigger initial change (4 new files vs 1).
-- Need to regenerate all 4 files when the corpus source changes (but `build_corpus.py` can be extended to emit these files instead of one big JSON).
+**Pros**: tiny initial bundle.
+**Cons**: reintroduces async; complex code path.
 
-### Option D: Combination — small inline TS module with stats + per-type lazy JSON files
+## Decision: Option C (revised) + next/dynamic wrapper
 
-Stats inline (small, ~1 KB). Per-type data as static JSON in `public/corpus-data/{type}.json`, lazy-fetched on filter change.
+### Audit gaps (post-critique, expanded from 3 to 11)
 
-**Pros**:
-- Initial bundle tiny (just stats).
-- Per-type fetch only when filter selects that type.
-- Survives resets (committed).
+The prior round's audit identified A2/A3/A4. Peer review surfaced **6 more substantive gaps** that more directly answer the user's actual ask:
 
-**Cons**:
-- Async loading reintroduced (per-type fetch).
-- More complex code path (fetch + cache + loading state per type).
-- Doesn't fully eliminate the fetch pattern — just defers it.
+| ID | Priority | Gap | Status in prior round |
+|---|---|---|---|
+| **A2** | medium | `subCluster` field exists but extractor never populates it | identified, deferred |
+| **A3** | medium | Pattern→stories reverse mapping invisible (fingerprint chips not clickable) | identified, deferred |
+| **A4** | medium | Variant chips in detail sheet not clickable | identified, deferred |
+| **A5** | HIGH | Variants aren't first-class browsable entities — user wants "8 stories" not "1 story with 8 chips" | MISSED |
+| **A6** | HIGH | No "apply pattern at mass scale" workflow — the user's stated PURPOSE for this corpus | MISSED |
+| **A7** | HIGH | No mapping from corpus story → Pattern Library (section 4) — "where do they land" unanswered | MISSED |
+| **A8** | medium | `byFamily` (16 families, most semantically-rich axis) has no filter chips | MISSED |
+| **A9** | medium | `byClimaxMode` computed but never displayed; no climax filter | MISSED |
+| **A10** | medium | `invariantPassCount` shown as badge but not filterable | MISSED |
+| **A11** | low | `categoryEmoji` extracted but never surfaced in viral-scene rows | MISSED |
+| **A12** | medium | `proWasNull` / `synthesizedStageCount` provenance computed but dropped in `trim_for_ui` | MISSED |
 
-## Decision: Option C
+A5/A6/A7 are the ones that most directly respond to what the user asked for. A2/A3/A4 are surface polish by comparison.
 
-**Why**: Best balance of static-content-no-runtime-Python, type-safety, dev experience (fast Turbopack compile), and clean architecture. Aligns with the user's "redo" framing — it's a real redesign, not a patch.
+### Concrete refinements per gap
 
-**Implementation sketch**:
+**A2 (subCluster taxonomy)** — populate for 5 families with concrete keyword heuristics:
+- `life-philosophy`: money / parental / romance / workplace / interpersonal / self-growth / friendship / aging-mortality
+- `time-travel`: modern-to-historical / historical-to-modern / parallel-world / rebirth-as-self / system-bound
+- `rebirth-revenge`: betrayer-revenge / family-ruin-revenge / career-revenge / regret-reversal
+- `modern-rich`: ceo-romance / family-feud / hidden-identity
+- `sweet-pet`: childhood-sweetheart / reunion / marriage-first
 
-1. Extend `scripts/build_corpus.py` to emit 4 TS files instead of 1 JSON:
-   - `src/lib/corpus-data/manju.ts` — exports `MANJU_STORIES: StoryRecord[]` + `MANJU_VARIANTS: VariantInstance[]`
-   - `src/lib/corpus-data/branch-drama.ts` — exports `BRANCH_DRAMA_STORIES` + `BRANCH_DRAMA_VARIANTS`
-   - `src/lib/corpus-data/viral-scene.ts` — exports `VIRAL_SCENE_STORIES` + `VIRAL_SCENE_VARIANTS`
-   - `src/lib/corpus-data/index.ts` — combines all + computes `CORPUS_STATS` + exports `CORPUS_DATA: CorpusData`
+**A3 (fingerprint matrix)** — expand `topFingerprints` from top-10 to ALL distinct; add "Fingerprints" view tab with matrix (rows = fingerprints, cols = story types, cells = counts); decode the opaque `rigid-tree|3|4|3cp-4e-12p` into readable form; color chips by story type.
 
-2. Update `CorpusLabSection.tsx`:
-   - Replace `fetch(CORPUS_URL)` with `import { CORPUS_DATA } from '@/lib/corpus-data'`
-   - Remove the `Loader2` loading state + error state (no async)
-   - The `useEffect` fetch goes away; just use the imported constant directly
+**A4 (variant detail sheet)** — extend `derive_variants` to store variant-specific content:
+- manju: `variantResolution_zh` (the ending-specific text from `synopsis[2].text`)
+- branch-drama: `variantLaneScenes: {slotId, label_zh}[]` per lane
+- viral-scene: only 1 variant — chip is decorative
+Click variant chip → opens `VariantDetailSheet` showing parent's stages + variant-specific resolution overlaid.
 
-3. Audit fixes applied during regeneration:
-   - **A2**: extend the extractor with sub-cluster heuristics for `life-philosophy` family
-     - money: 借钱/谈钱/救急不救穷/钱能解决/免费的最贵/别露富/兜里有钱
-     - parental: 父母/空碗/我不饿/来处/沉默/角色互换/家里都好
-     - romance: 喜欢/舍得让你等/被爱有恃无恐/失望攒够了
-     - workplace: 画的饼/离职见人品/情绪稳定/能力之外/沉默的大多数/会哭的孩子
-     - interpersonal: 借钱/群里/删人/锦上添花/人走茶凉
-   - **A3**: add a new "Top Fingerprints" panel above the story list — each fingerprint is a clickable chip that applies a "fingerprint" filter
-   - **A4**: make variant chips in the detail sheet clickable — clicking shows a tooltip / inline expand with variant-specific info (the variant's ending/lane applied to the pattern)
+**A5 (variants as first-class rows)** — add "view: stories | variants" toggle in FilterBar. Variants view flattens to all 1136 variants as rows.
 
-4. Un-gitignore `src/lib/corpus-data/` (commit the data). Keep `public/corpus-summary.json` gitignored (legacy, no longer used).
+**A6 (apply-at-scale workflow)** — add checkbox column to each `StoryRow`; add "Batch: apply pattern →" button in FilterBar; opens sheet showing count + pattern picker + run button. Run computes a "fits / forces / breaks" heuristic per story × pattern based on `branchingType` + `invariantPassCount` + `familyKey`.
 
-5. Update `README.md` to document the new structure.
+**A7 (corpus → Pattern Library mapping)** — in `StoryDetailSheet`, add "Closest Pattern Library matches" section. Compute match score per library pattern (15 patterns) based on familyKey + branchingType + stageCount + archetypeCount proximity. Show top 3 as clickable cards; click → cross-navigate to section 4.
 
-## Verification
+**A8 (family filter)** — add 4th filter row "Family · 家族" with 16 chips sorted by count desc.
 
-- Agent Browser end-to-end:
-  - Section renders without "Loading corpus…" state
-  - Stats dashboard populated (259 / 1136 / etc.)
-  - All 3 filter groups work
-  - Search works
-  - Expand chevron shows variants
-  - Click story → detail sheet opens
-  - Click fingerprint chip → filters stories by fingerprint
-  - Click variant chip → shows variant detail
-  - Tour step 7 still targets `#corpus-lab`
+**A9 (climax mode filter + chart)** — add 5th filter row "Climax · 爆点模式" with 4 chips; add `byClimaxMode` mini-chart in StatsDashboard.
 
-- Lint clean
-- Dev server healthy on port 3000
+**A10 (invariant filter)** — add 6th filter row "Invariant · 校验" with 3 chips (all-pass / partial / fail).
+
+**A11 (emoji surface)** — prepend `categoryEmoji` to viral-scene StoryRow titles.
+
+**A12 (synthesized stage provenance)** — propagate `proWasNull` from `extract_viral_scene` through `trim_for_ui` to `StoryRecord`; add `synthesizedStageCount?: number`; show "⚙ synthesized from act template" badge on synthesized stages in detail sheet.
+
+### Other refinements from critique
+
+- Use `as const satisfies CorpusData` on the aggregator export (preserves literals + catches shape drift)
+- Add `// @generated — do not edit` + `// eslint-disable max-lines` headers to each generated TS file
+- Make `build_corpus.py` sort output deterministically (stories by `id`, variants by `variantId`, counters by `(-count, key)`)
+- Mark INFERRED placeholder strings visually (italic + "⚠ inferred" badge) in detail sheet
+- Handle dual-protagonist schema gap (add `coProtagonists?: string[]` OR document as known limitation)
+- Fix `totalPaths == 1` → `0` edge case (should be `1cp-1e-1p` not `0cp-0e-0p`)
+
+## Implementation order (post-critique, 6 commits each verifiable)
+
+1. **Commit 1 — Data-layer migration, zero behavior change.** Extend `build_corpus.py` to emit 4 TS files; update `CorpusLabSection.tsx` to `import { CORPUS_DATA }`. Removes Python runtime dependency. Fixes user's actual pain (broken-on-reset). **This is the priority fix.**
+2. **Commit 2 — Determinism + `satisfies` + `next/dynamic`.** Add `// @generated` header + sort output; switch export to `satisfies CorpusData`; wrap `CorpusLabSection` in `next/dynamic({ ssr: false })`.
+3. **Commit 3 — A2 + A12 + A8/A9/A10/A11 (extraction + filter expansion).**
+4. **Commit 4 — A3 fingerprint matrix.**
+5. **Commit 5 — A4 + A5 variant-as-first-class.**
+6. **Commit 6 — A6 + A7 apply-at-scale + Pattern Library mapping.**
+
+Each commit is reviewable in isolation, each has a verification gate. User gets working Corpus Lab after Commit 1.
+
+## Tests to add
+
+- **Snapshot test**: `tests/corpus-data-snapshot.sh` — run `python3 scripts/build_corpus.py`, `git diff --exit-code src/lib/corpus-data/`. Catches upstream corpus drift.
+- **Type guard test**: `tests/corpus-types.test.ts` — assert `CORPUS_DATA.stories.length === 259`, `variants.length === 1136`, etc.
+- **UI smoke test (Playwright/agent-browser)**: navigate to `/#corpus-lab`, assert 259 rows present, no Loader2 spinner, expand first row, click story, assert detail sheet opens.
+
+## Verification gates per commit
+
+- Commit 1: Agent Browser → `#corpus-lab` renders without "Loading corpus…" state; stats dashboard populated; first 3 stories visible.
+- Commit 2: `bun run lint` clean; `git diff --stat HEAD~1` shows TS data file unchanged after re-running build_corpus.py (determinism check).
+- Commit 3: Family filter visible with 16 chips; climax-mode filter visible with 4 chips; invariant filter visible with 3 chips; emoji visible on viral-scene rows; "⚙ synthesized" badge visible on philo stories.
+- Commit 4: "Fingerprints" tab visible; matrix renders; click fingerprint → filters stories.
+- Commit 5: "view: stories | variants" toggle visible; switch to variants → 1136 rows; click variant chip → VariantDetailSheet opens with variant-specific content.
+- Commit 6: Checkbox column visible; select 3 stories; "Batch: apply pattern" button enabled; click → opens sheet; select pattern; run → results table shows "fits/forces/breaks" per story.
 
 ## Rollback plan
 
-If Option C turns out to bloat the bundle too much (compile times > 5s):
-- Fall back to Option A (commit JSON to public/) — single git revert of the TS data files + restore the fetch-based component.
+If Commit 1's TS data files break the build:
+- Revert to JSON-fetch approach + commit `public/corpus-summary.json` (Option A) as a fallback.
 
-If sub-agent critique surfaces a better option I missed:
-- Revise this decision doc + re-implement.
+If Commit 2's `next/dynamic` wrapper breaks the tour:
+- Revert the wrapper; keep the static import.
+
+If sub-agent critique surfaces a better option:
+- Revise + re-implement.
